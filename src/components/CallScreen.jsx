@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import Avatar from './Avatar.jsx';
+import { useT } from '../i18n.js';
+import { startRing, stopRing } from '../sound.js';
+import { fmtDur } from '../utils.js';
 
 function StreamVideo({ stream, muted, className }) {
   const ref = useRef(null);
@@ -9,19 +13,27 @@ function StreamVideo({ stream, muted, className }) {
 }
 
 export function IncomingCall({ call, onAccept, onReject }) {
+  const { t } = useT();
+
+  useEffect(() => {
+    startRing();
+    return () => stopRing();
+  }, []);
+
   return (
     <div className="overlay incoming">
       <div className="call-card">
-        <div className="avatar big">{call.callerName?.slice(0, 1).toUpperCase()}</div>
+        <Avatar name={call.callerName} size={110} />
         <h2>{call.callerName}</h2>
         <p className="muted">
-          {call.type === 'video' ? 'Video call' : 'Voice call'} asche...
+          {call.type === 'video' ? '🎥 ' + t('incomingVideo') : '📞 ' + t('incomingVoice')} ·{' '}
+          {t('incomingSub')}
         </p>
         <div className="call-actions">
-          <button className="round red" onClick={onReject} title="Kete daw">
+          <button className="round red" onClick={onReject} title={t('reject')}>
             ✖
           </button>
-          <button className="round green" onClick={onAccept} title="Dhoro">
+          <button className="round green" onClick={onAccept} title={t('accept')}>
             📞
           </button>
         </div>
@@ -31,6 +43,7 @@ export function IncomingCall({ call, onAccept, onReject }) {
 }
 
 export function CallScreen({ active, localStream, remoteStream, onEnd, onToggleMic, onToggleCam }) {
+  const { t } = useT();
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [secs, setSecs] = useState(0);
@@ -41,30 +54,24 @@ export function CallScreen({ active, localStream, remoteStream, onEnd, onToggleM
       setSecs(0);
       return undefined;
     }
-    const t = setInterval(() => setSecs((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(id);
   }, [active.status]);
-
-  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-  const ss = String(secs % 60).padStart(2, '0');
 
   return (
     <div className="overlay in-call">
-      {/* Remote stream audio-o ekhane baje; audio call-e video-ta lukano thake */}
-      <StreamVideo
-        stream={remoteStream}
-        className={isVideo ? 'remote-video' : 'hidden-media'}
-      />
+      {/* Remote audio ekhane baje; audio call-e video lukano thake */}
+      <StreamVideo stream={remoteStream} className={isVideo ? 'remote-video' : 'hidden-media'} />
 
       {!isVideo && (
         <div className="audio-center">
-          <div className="avatar big">{active.peerName?.slice(0, 1).toUpperCase()}</div>
+          <Avatar name={active.peerName} size={120} />
         </div>
       )}
 
       <div className="call-top">
         <h2>{active.peerName}</h2>
-        <p>{active.status === 'calling' ? 'Ring hocche...' : `${mm}:${ss}`}</p>
+        <p>{active.status === 'calling' ? t('calling') : fmtDur(secs)}</p>
       </div>
 
       {isVideo && <StreamVideo stream={localStream} muted className="local-video" />}
@@ -73,7 +80,7 @@ export function CallScreen({ active, localStream, remoteStream, onEnd, onToggleM
         <button
           className={`round ${muted ? 'active' : ''}`}
           onClick={() => setMuted(onToggleMic())}
-          title="Mic"
+          title={t('mute')}
         >
           {muted ? '🔇' : '🎤'}
         </button>
@@ -81,12 +88,12 @@ export function CallScreen({ active, localStream, remoteStream, onEnd, onToggleM
           <button
             className={`round ${camOff ? 'active' : ''}`}
             onClick={() => setCamOff(onToggleCam())}
-            title="Camera"
+            title={t('camera')}
           >
             {camOff ? '🚫' : '📷'}
           </button>
         )}
-        <button className="round red" onClick={onEnd} title="Call shesh">
+        <button className="round red" onClick={onEnd} title={t('endCall')}>
           ✖
         </button>
       </div>

@@ -1,132 +1,153 @@
-import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { auth, db } from '../firebase';
+import { useMemo, useState } from 'react';
+import Avatar from './Avatar.jsx';
+import CallLog from './CallLog.jsx';
+import { useT } from '../i18n.js';
+import { chatIdFor, fmtDayOrTime, tsMs } from '../utils.js';
 
-export const chatIdFor = (a, b) => [a, b].sort().join('_');
-
-const initials = (name = '?') => name.trim().slice(0, 1).toUpperCase();
-
-const timeLabel = (ts) => {
-  if (!ts?.toDate) return '';
-  const d = ts.toDate();
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-  return d.toLocaleDateString([], { day: '2-digit', month: 'short' });
-};
-
-export default function Sidebar({ me, selectedUid, onSelect, onCall, callBusy }) {
-  const [users, setUsers] = useState([]);
-  const [chats, setChats] = useState({});
+export default function Sidebar({
+  me,
+  users,
+  usersMap,
+  chats,
+  chatsById,
+  loadError,
+  selectedKey,
+  onSelect,
+  onCall,
+  callBusy,
+  onSettings,
+  onNewGroup,
+}) {
+  const { t } = useT();
+  const [tab, setTab] = useState('chats');
   const [search, setSearch] = useState('');
-  const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    const unsub = onSnapshot(
-      collection(db, 'users'),
-      (snap) => {
-        setLoadError('');
-        setUsers(snap.docs.map((d) => d.data()).filter((u) => u.uid !== me.uid));
-      },
-      (err) => setLoadError(`User list load hoyni (${err.code}). Firestore rules deploy kora ache kina dekho.`)
-    );
-    return unsub;
-  }, [me.uid]);
-
-  useEffect(() => {
-    const q = query(collection(db, 'chats'), where('members', 'array-contains', me.uid));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const map = {};
-        snap.docs.forEach((d) => {
-          map[d.id] = d.data();
-        });
-        setChats(map);
-      },
-      () => {}
-    );
-    return unsub;
-  }, [me.uid]);
-
-  const list = useMemo(() => {
+  const items = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return users
-      .filter((u) => !s || u.name?.toLowerCase().includes(s) || u.email?.includes(s))
-      .map((u) => ({ ...u, chat: chats[chatIdFor(me.uid, u.uid)] }))
+    const directs = users
+      .filter((u) => u.uid !== me.uid)
+      .map((u) => ({
+        key: chatIdFor(me.uid, u.uid),
+        kind: 'direct',
+        user: u,
+        name: u.name || '',
+        chat: chatsById[chatIdFor(me.uid, u.uid)],
+      }));
+    const groups = chats
+      .filter((c) => c.isGroup)
+      .map((c) => ({ key: c.id, kind: 'group', name: c.name || '', chat: c }));
+    return [...directs, ...groups]
+      .filter((i) => !s || i.name.toLowerCase().includes(s) || (i.user && (i.user.email || '').includes(s)))
       .sort((a, b) => {
-        const ta = a.chat?.updatedAt?.toMillis?.() || 0;
-        const tb = b.chat?.updatedAt?.toMillis?.() || 0;
+        const ta = tsMs(a.chat && a.chat.updatedAt);
+        const tb = tsMs(b.chat && b.chat.updatedAt);
         if (ta !== tb) return tb - ta;
-        return (a.name || '').localeCompare(b.name || '');
+        return a.name.localeCompare(b.name);
       });
-  }, [users, chats, search, me.uid]);
+  }, [users, chats, chatsById, search, me.uid]);
+
+  const previewOf = (chat) => {
+    if (!chat || (!chat.lastMessage && !chat.lastType)) return t('sayHi');
+    let body = chat.lastMessage;
+    if (chat.lastType === 'image') body = t('photo');
+    else if (chat.lastType === 'audio') body = t('voiceMsg');
+    if (!body) return t('sayHi');
+    return chat.lastFrom === me.uid ? `${t('you')}: ${body}` : body;
+  };
+
+  const totalUnread = chats.reduce((n, c) => n + ((c.unread && c.unread[me.uid]) || 0), 0);
 
   return (
     <aside className="sidebar">
       <header className="side-head">
-        <div className="avatar me">{initials(me.name)}</div>
+        <button className="avatar-btn" onClick={onSettings} title={t('settings')}>
+          <Avatar name={me.name} size={40} />
+        </button>
         <div className="grow">
-          <div className="name">{me.name}</div>
-          <div className="muted small">{me.email}</div>
+          <div className="name ellipsis">{me.name}</div>
+          <div className="muted small ellipsis">{me.email}</div>
         </div>
-        <button className="icon-btn" title="Logout" onClick={() => signOut(auth)}>
-          ⎋
+        <button className="icon-btn" title={t('newGroup')} onClick={onNewGroup}>
+          👥
+        </button>
+        <button className="icon-btn" title={t('settings')} onClick={onSettings}>
+          ⚙️
         </button>
       </header>
 
-      <div className="search-box">
-        <input
-          placeholder="Khojo ba notun chat shuru koro"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="tabs">
+        <button className={tab === 'chats' ? 'on' : ''} onClick={() => setTab('chats')}>
+          {t('chats')}
+          {totalUnread > 0 && <span className="badge">{totalUnread}</span>}
+        </button>
+        <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>
+          {t('calls')}
+        </button>
       </div>
 
-      <div className="user-list">
-        {loadError && <div className="empty">{loadError}</div>}
-        {!loadError && list.length === 0 && (
-          <div className="empty">
-            {users.length === 0
-              ? 'Ekhono ar keu join kore nai. Onno device/browser theke onno email diye account kholo, tahole ekhane dekhabe.'
-              : 'Kauke paoa jayni.'}
+      {tab === 'calls' ? (
+        <CallLog me={me} usersMap={usersMap} onCall={onCall} callBusy={callBusy} />
+      ) : (
+        <>
+          <div className="search-box">
+            <input placeholder={t('search')} value={search} onChange={(e) => setSearch(e.target.value)} dir="auto" />
           </div>
-        )}
-        {list.map((u) => (
-          <div key={u.uid} className={`user-row ${selectedUid === u.uid ? 'active' : ''}`}>
-            <button className="user-main" onClick={() => onSelect(u)}>
-              <div className="avatar">{initials(u.name)}</div>
-              <div className="grow left">
-                <div className="row-top">
-                  <span className="name">{u.name}</span>
-                  <span className="muted small">{timeLabel(u.chat?.updatedAt)}</span>
+
+          <div className="user-list">
+            {loadError && <div className="empty">{t('loadFail', { code: loadError })}</div>}
+            {!loadError && items.length === 0 && (
+              <div className="empty">{users.length <= 1 ? t('noUsers') : t('noResults')}</div>
+            )}
+            {items.map((i) => {
+              const unread = (i.chat && i.chat.unread && i.chat.unread[me.uid]) || 0;
+              return (
+                <div key={i.key} className={`user-row ${selectedKey === i.key ? 'active' : ''}`}>
+                  <button
+                    className="user-main"
+                    onClick={() => onSelect(i.kind === 'direct' ? { type: 'direct', uid: i.user.uid } : { type: 'group', id: i.key })}
+                  >
+                    <Avatar name={i.name} group={i.kind === 'group'} />
+                    <div className="grow left">
+                      <div className="row-top">
+                        <span className="name ellipsis">{i.name}</span>
+                        <span className={`small ${unread ? 'unread-time' : 'muted'}`}>
+                          {fmtDayOrTime(tsMs(i.chat && i.chat.updatedAt))}
+                        </span>
+                      </div>
+                      <div className="row-top">
+                        <span className="muted small ellipsis" dir="auto">
+                          {previewOf(i.chat)}
+                        </span>
+                        {unread > 0 && <span className="badge">{unread}</span>}
+                      </div>
+                    </div>
+                  </button>
+                  {i.kind === 'direct' && (
+                    <>
+                      <button
+                        className="icon-btn"
+                        title={t('voiceCall')}
+                        disabled={callBusy}
+                        onClick={() => onCall(i.user, 'audio')}
+                      >
+                        📞
+                      </button>
+                      <button
+                        className="icon-btn"
+                        title={t('videoCall')}
+                        disabled={callBusy}
+                        onClick={() => onCall(i.user, 'video')}
+                      >
+                        🎥
+                      </button>
+                    </>
+                  )}
                 </div>
-                <div className="muted small ellipsis">
-                  {u.chat?.lastMessage || 'Message pathao'}
-                </div>
-              </div>
-            </button>
-            <button
-              className="icon-btn"
-              title="Voice call"
-              disabled={callBusy}
-              onClick={() => onCall(u, 'audio')}
-            >
-              📞
-            </button>
-            <button
-              className="icon-btn"
-              title="Video call"
-              disabled={callBusy}
-              onClick={() => onCall(u, 'video')}
-            >
-              🎥
-            </button>
+              );
+            })}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </aside>
   );
 }

@@ -4,30 +4,31 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
 } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
+import { LANGS, useT } from '../i18n.js';
 
-const friendly = (code) => {
+const errKey = (code) => {
   switch (code) {
     case 'auth/invalid-email':
-      return 'Email thik nai.';
+      return 'errEmail';
     case 'auth/missing-password':
     case 'auth/weak-password':
-      return 'Password komti 6 character hote hobe.';
+      return 'errPass';
     case 'auth/email-already-in-use':
-      return 'Ei email diye already account ache. Login koro.';
+      return 'errExists';
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Email ba password vul.';
+      return 'errCred';
     case 'auth/operation-not-allowed':
-      return 'Firebase Console-e Email/Password sign-in chalu koro.';
+      return 'errDisabled';
     default:
-      return 'Kichu ekta vul hoyeche, abar chesta koro.';
+      return 'errGeneric';
   }
 };
 
-export default function Login() {
+export default function Login({ lang, onLang }) {
+  const { t } = useT();
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,25 +40,26 @@ export default function Login() {
     e.preventDefault();
     setError('');
     if (mode === 'signup' && !name.trim()) {
-      setError('Tomar nam likho.');
+      setError(t('errName'));
       return;
     }
     setBusy(true);
     try {
       if (mode === 'signup') {
+        // Profile document App.jsx toiri kore; tar jonno nam ar bhasha age rekhe dei
+        try {
+          localStorage.setItem('cc_pending_name', name.trim());
+          localStorage.setItem('cc_lang', lang);
+        } catch (err) {
+          /* ignore */
+        }
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await updateProfile(cred.user, { displayName: name.trim() });
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          uid: cred.user.uid,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          createdAt: serverTimestamp(),
-        });
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (err) {
-      setError(friendly(err.code));
+      setError(t(errKey(err.code)));
     } finally {
       setBusy(false);
     }
@@ -68,11 +70,22 @@ export default function Login() {
       <form className="login-card" onSubmit={submit}>
         <div className="logo">💬</div>
         <h1>ChatCall</h1>
-        <p className="sub">Message ar call, ek jaygay</p>
+        <p className="sub">{t('tagline')}</p>
+
+        <label className="field-label" htmlFor="lang">
+          🌐 {t('language')}
+        </label>
+        <select id="lang" value={lang} onChange={(e) => onLang(e.target.value)}>
+          {LANGS.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.name}
+            </option>
+          ))}
+        </select>
 
         {mode === 'signup' && (
           <input
-            placeholder="Tomar nam"
+            placeholder={t('yourName')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
@@ -80,14 +93,14 @@ export default function Login() {
         )}
         <input
           type="email"
-          placeholder="Email"
+          placeholder={t('email')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
         />
         <input
           type="password"
-          placeholder="Password (kom pokkhe 6 character)"
+          placeholder={t('password')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
@@ -96,7 +109,7 @@ export default function Login() {
         {error && <div className="error">{error}</div>}
 
         <button className="primary" disabled={busy}>
-          {busy ? 'Wait koro...' : mode === 'signup' ? 'Account kholo' : 'Login'}
+          {busy ? t('wait') : mode === 'signup' ? t('signup') : t('login')}
         </button>
 
         <button
@@ -107,7 +120,7 @@ export default function Login() {
             setError('');
           }}
         >
-          {mode === 'signup' ? 'Already account ache? Login koro' : 'Notun? Account kholo'}
+          {mode === 'signup' ? t('haveAcc') : t('newHere')}
         </button>
       </form>
     </div>
