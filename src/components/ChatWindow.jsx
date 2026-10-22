@@ -26,7 +26,23 @@ const EMOJIS = [
 
 const MAX_REC_SECS = 90;
 
-export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, onBack, onCall, callBusy }) {
+const fresh = (ac) => ac && Date.now() - (ac.startedMs || 0) < 3 * 3600 * 1000;
+
+export default function ChatWindow({
+  me,
+  chatId,
+  peer,
+  group,
+  chat,
+  usersMap,
+  starredIds,
+  onStar,
+  onBack,
+  onCall,
+  callBusy,
+  onGroupCall,
+  onJoinRoom,
+}) {
   const { t } = useT();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -36,6 +52,7 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
   const [now, setNow] = useState(Date.now());
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
+  const [replyTo, setReplyTo] = useState(null);
 
   const bottomRef = useRef(null);
   const lastTyping = useRef(0);
@@ -155,13 +172,16 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
         fromName: me.name,
         lang: me.lang,
         createdAt: serverTimestamp(),
+        ...(replyTo ? { replyTo } : {}),
         ...payload,
       });
+      setReplyTo(null);
       await setDoc(
         chatRef,
         {
           lastMessage: preview || '',
           lastType,
+          lastLang: me.lang,
           lastFrom: me.uid,
           updatedAt: serverTimestamp(),
           unread,
@@ -204,6 +224,17 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
       flash(t('imgFail'));
     }
   };
+
+  const startReply = (m) => {
+    setReplyTo({
+      id: m.id,
+      name: m.from === me.uid ? me.name : (usersMap[m.from] && usersMap[m.from].name) || m.fromName || '',
+      kind: m.type,
+      text: m.type === 'text' ? (m.text || '').slice(0, 100) : '',
+    });
+  };
+
+  const starMsg = (m, on) => onStar({ chatId, chatTitle: group ? group.name : peer.name, m, on });
 
   const deleteMsg = (m) => {
     updateDoc(doc(chatRef, 'messages', m.id), {
@@ -286,7 +317,7 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
         <button className="icon-btn back" onClick={onBack} title={t('back')}>
           ←
         </button>
-        <Avatar name={title} group={!!group} size={40} />
+        <Avatar name={title} group={!!group} size={40} photo={peer && peer.photo} />
         <div className="grow">
           <div className="name ellipsis">{title}</div>
           <div className={`small ${typers.length ? 'typing' : 'muted'}`}>{statusLine}</div>
@@ -311,6 +342,31 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
             </button>
           </>
         )}
+        {group && fresh(chat && chat.activeCall) && (
+          <button className="pill live" disabled={callBusy} onClick={() => onJoinRoom(chat)}>
+            📞 {t('joinCall')}
+          </button>
+        )}
+        {group && !fresh(chat && chat.activeCall) && (
+          <>
+            <button
+              className="icon-btn"
+              title={t('groupCall')}
+              disabled={callBusy}
+              onClick={() => onGroupCall(chat, 'audio')}
+            >
+              📞
+            </button>
+            <button
+              className="icon-btn"
+              title={t('groupCall')}
+              disabled={callBusy}
+              onClick={() => onGroupCall(chat, 'video')}
+            >
+              🎥
+            </button>
+          </>
+        )}
       </header>
 
       <div className="messages">
@@ -325,6 +381,9 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
             showSender={!!group}
             others={others}
             chat={chat}
+            starred={!!(starredIds && starredIds.has(`${chatId}_${m.id}`))}
+            onStar={starMsg}
+            onReply={startReply}
             onDelete={deleteMsg}
             onImage={setViewImg}
           />
@@ -333,6 +392,20 @@ export default function ChatWindow({ me, chatId, peer, group, chat, usersMap, on
       </div>
 
       {notice && <div className="chat-notice">{notice}</div>}
+
+      {replyTo && (
+        <div className="reply-bar">
+          <div className="grow">
+            <b>{t('replyingTo', { name: replyTo.name })}</b>
+            <div className="ellipsis" dir="auto">
+              {replyTo.kind === 'image' ? t('photo') : replyTo.kind === 'audio' ? t('voiceMsg') : replyTo.text}
+            </div>
+          </div>
+          <button type="button" className="icon-btn" onClick={() => setReplyTo(null)}>
+            ✖
+          </button>
+        </div>
+      )}
 
       {showEmoji && (
         <div className="emoji-panel">

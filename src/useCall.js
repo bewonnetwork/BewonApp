@@ -10,6 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { createMediaController } from './media.js';
 
 const ICE_CONFIG = {
   iceServers: [
@@ -40,7 +41,10 @@ export function useCall(me, t) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [error, setError] = useState(null);
+  const [sharing, setSharing] = useState(false);
 
+  const ctrlRef = useRef(null);
+  const typeRef = useRef('audio');
   const pcRef = useRef(null);
   const localRef = useRef(null);
   const unsubsRef = useRef([]);
@@ -67,6 +71,9 @@ export function useCall(me, t) {
       localRef.current.getTracks().forEach((tr) => tr.stop());
       localRef.current = null;
     }
+    if (ctrlRef.current) ctrlRef.current.cleanup();
+    ctrlRef.current = null;
+    setSharing(false);
     callIdRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
@@ -122,6 +129,13 @@ export function useCall(me, t) {
   const makePeer = (stream) => {
     const pc = new RTCPeerConnection(ICE_CONFIG);
     pcRef.current = pc;
+    ctrlRef.current = createMediaController({
+      getLocal: () => localRef.current,
+      setLocal: setLocalStream,
+      getPcs: () => (pcRef.current ? [pcRef.current] : []),
+      hadVideo: () => typeRef.current === 'video',
+      onShare: setSharing,
+    });
     stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
     const remote = new MediaStream();
     setRemoteStream(remote);
@@ -137,11 +151,12 @@ export function useCall(me, t) {
       if (active || !me) return;
       setError(null);
       try {
+        typeRef.current = type;
         const stream = await getMedia(type);
         const pc = makePeer(stream);
         const callRef = doc(collection(db, 'calls'));
         callIdRef.current = callRef.id;
-        setActive({ id: callRef.id, peerName: peer.name, type, status: 'calling' });
+        setActive({ id: callRef.id, peerName: peer.name, peerId: peer.uid, type, status: 'calling' });
 
         // Call doc toiri hoyar age candidate likhle rules permission dey na, tai queue kore rakhi
         let ready = false;
@@ -219,11 +234,18 @@ export function useCall(me, t) {
     const call = incoming;
     setIncoming(null);
     try {
+      typeRef.current = call.type;
       const stream = await getMedia(call.type);
       const pc = makePeer(stream);
       const callRef = doc(db, 'calls', call.id);
       callIdRef.current = call.id;
-      setActive({ id: call.id, peerName: call.callerName, type: call.type, status: 'connected' });
+      setActive({
+        id: call.id,
+        peerName: call.callerName,
+        peerId: call.callerId,
+        type: call.type,
+        status: 'connected',
+      });
 
       pc.onicecandidate = (e) => {
         if (e.candidate) {
@@ -299,7 +321,28 @@ export function useCall(me, t) {
     return tr ? !tr.enabled : false; // cam off?
   }, []);
 
+  const switchCamera = useCallback(async () => {
+    if (!ctrlRef.current) return;
+    try {
+      await ctrlRef.current.switchCamera();
+    } catch (e) {
+      setError({ key: 'camFail' });
+    }
+  }, []);
+
+  const toggleShare = useCallback(async () => {
+    if (!ctrlRef.current) return;
+    try {
+      await ctrlRef.current.toggleShare();
+    } catch (e) {
+      /* user cancelled the picker */
+    }
+  }, []);
+
   return {
+    sharing,
+    switchCamera,
+    toggleShare,
     incoming,
     active,
     localStream,

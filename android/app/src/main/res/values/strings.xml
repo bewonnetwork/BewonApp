@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ChatCall</string>
-    <string name="title_activity_main">ChatCall</string>
+    <string name="app_name">BewonChat</string>
+    <string name="title_activity_main">BewonChat</string>
     <string name="package_name">com.chatcall.app</string>
     <string name="custom_url_scheme">com.chatcall.app</string>
 </resources>

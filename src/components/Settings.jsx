@@ -1,17 +1,33 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { LANGS, useT } from '../i18n.js';
+import { compressImage } from '../utils.js';
+import { APK_URL } from '../config.js';
+import Avatar from './Avatar.jsx';
 
-export default function Settings({ me, onClose }) {
+export default function Settings({ me, soundOn, onSound, onClose }) {
   const { t } = useT();
   const [name, setName] = useState(me.name || '');
   const [about, setAbout] = useState(me.about || '');
   const [lang, setLang] = useState(me.lang || 'en');
   const [auto, setAuto] = useState(me.autoTranslate !== false);
+  const [photo, setPhoto] = useState(me.photo || '');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  const pickPhoto = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      setPhoto(await compressImage(f, 256, 0.75));
+    } catch (err) {
+      /* ignore */
+    }
+  };
 
   const save = async () => {
     if (!name.trim()) return;
@@ -22,6 +38,7 @@ export default function Settings({ me, onClose }) {
         about: about.trim(),
         lang,
         autoTranslate: auto,
+        photo,
       });
       try {
         localStorage.setItem('cc_lang', lang);
@@ -40,6 +57,14 @@ export default function Settings({ me, onClose }) {
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>{t('yourProfile')}</h2>
+
+        <div className="photo-row">
+          <Avatar name={name} photo={photo} size={72} />
+          <button className="ghost" onClick={() => fileRef.current && fileRef.current.click()}>
+            📷 {t('photoChange')}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickPhoto} />
+        </div>
 
         <label className="field-label">{t('yourName')}</label>
         <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -64,6 +89,11 @@ export default function Settings({ me, onClose }) {
           </span>
         </label>
 
+        <label className="check">
+          <input type="checkbox" checked={soundOn} onChange={(e) => onSound(e.target.checked)} />
+          <span>{t('sound')}</span>
+        </label>
+
         <div className="modal-actions">
           <button className="primary" disabled={busy} onClick={save}>
             {saved ? t('saved') : t('save')}
@@ -72,6 +102,10 @@ export default function Settings({ me, onClose }) {
             {t('close')}
           </button>
         </div>
+
+        <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
+          ⬇ {t('downloadApp')}
+        </a>
         <button className="link danger" onClick={() => signOut(auth)}>
           ⎋ {t('logout')}
         </button>

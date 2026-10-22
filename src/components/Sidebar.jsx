@@ -1,8 +1,35 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import CallLog from './CallLog.jsx';
-import { useT } from '../i18n.js';
+import Meet from './Meet.jsx';
+import News from './News.jsx';
+import { useT, sameLang } from '../i18n.js';
+import { translateText } from '../translate.js';
 import { chatIdFor, fmtDayOrTime, tsMs } from '../utils.js';
+
+// Chat list-er last message-o nijer bhasha-y translate kore dekhay
+function Preview({ chat, me, text }) {
+  const { lang } = useT();
+  const [out, setOut] = useState(null);
+  const incoming = chat && chat.lastFrom && chat.lastFrom !== me.uid && chat.lastType === 'text';
+  const auto = me.autoTranslate !== false;
+  useEffect(() => {
+    setOut(null);
+    if (!incoming || !auto || !chat.lastMessage || !chat.lastLang || sameLang(chat.lastLang, lang)) return;
+    let alive = true;
+    translateText(chat.lastMessage, chat.lastLang, lang).then((r) => {
+      if (alive && r && r.text) setOut(r.text);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [chat && chat.lastMessage, chat && chat.lastLang, lang, incoming, auto]);
+  return (
+    <span className="muted small ellipsis" dir="auto">
+      {out || text}
+    </span>
+  );
+}
 
 export default function Sidebar({
   me,
@@ -17,10 +44,15 @@ export default function Sidebar({
   callBusy,
   onSettings,
   onNewGroup,
+  onStarred,
+  onReadAll,
+  onJoinMeeting,
 }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [tab, setTab] = useState('chats');
+  const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [menu, setMenu] = useState(false);
 
   const items = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -38,13 +70,18 @@ export default function Sidebar({
       .map((c) => ({ key: c.id, kind: 'group', name: c.name || '', chat: c }));
     return [...directs, ...groups]
       .filter((i) => !s || i.name.toLowerCase().includes(s) || (i.user && (i.user.email || '').includes(s)))
+      .filter((i) => {
+        if (filter === 'unread') return ((i.chat && i.chat.unread && i.chat.unread[me.uid]) || 0) > 0;
+        if (filter === 'groups') return i.kind === 'group';
+        return true;
+      })
       .sort((a, b) => {
         const ta = tsMs(a.chat && a.chat.updatedAt);
         const tb = tsMs(b.chat && b.chat.updatedAt);
         if (ta !== tb) return tb - ta;
         return a.name.localeCompare(b.name);
       });
-  }, [users, chats, chatsById, search, me.uid]);
+  }, [users, chats, chatsById, search, filter, me.uid]);
 
   const previewOf = (chat) => {
     if (!chat || (!chat.lastMessage && !chat.lastType)) return t('sayHi');
@@ -57,40 +94,88 @@ export default function Sidebar({
 
   const totalUnread = chats.reduce((n, c) => n + ((c.unread && c.unread[me.uid]) || 0), 0);
 
+  const TABS = [
+    ['chats', '💬', t('chats')],
+    ['calls', '📞', t('calls')],
+    ['meet', '🎥', t('meetings')],
+    ['news', '📰', t('news')],
+  ];
+
   return (
     <aside className="sidebar">
       <header className="side-head">
         <button className="avatar-btn" onClick={onSettings} title={t('settings')}>
-          <Avatar name={me.name} size={40} />
+          <Avatar name={me.name} photo={me.photo} size={40} />
         </button>
         <div className="grow">
           <div className="name ellipsis">{me.name}</div>
-          <div className="muted small ellipsis">{me.email}</div>
+          <div className="muted small ellipsis">{me.about || me.email}</div>
         </div>
-        <button className="icon-btn" title={t('newGroup')} onClick={onNewGroup}>
-          👥
-        </button>
-        <button className="icon-btn" title={t('settings')} onClick={onSettings}>
-          ⚙️
-        </button>
+        <div className="menu-wrap">
+          <button className="icon-btn" title={t('menu')} onClick={() => setMenu((v) => !v)}>
+            ⋮
+          </button>
+          {menu && (
+            <>
+              <div className="menu-back" onClick={() => setMenu(false)} />
+              <div className="menu">
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    onNewGroup();
+                  }}
+                >
+                  👥 {t('newGroup')}
+                </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    onStarred();
+                  }}
+                >
+                  ⭐ {t('starred')}
+                </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    onReadAll();
+                  }}
+                >
+                  ✓✓ {t('readAll')}
+                </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    onSettings();
+                  }}
+                >
+                  ⚙️ {t('settings')}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
-      <div className="tabs">
-        <button className={tab === 'chats' ? 'on' : ''} onClick={() => setTab('chats')}>
-          {t('chats')}
-          {totalUnread > 0 && <span className="badge">{totalUnread}</span>}
-        </button>
-        <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>
-          {t('calls')}
-        </button>
-      </div>
+      {tab === 'calls' && <CallLog me={me} usersMap={usersMap} onCall={onCall} callBusy={callBusy} />}
+      {tab === 'meet' && <Meet me={me} onJoinMeeting={onJoinMeeting} busy={callBusy} />}
+      {tab === 'news' && <News lang={lang} />}
 
-      {tab === 'calls' ? (
-        <CallLog me={me} usersMap={usersMap} onCall={onCall} callBusy={callBusy} />
-      ) : (
+      {tab === 'chats' && (
         <>
           <div className="search-box">
             <input placeholder={t('search')} value={search} onChange={(e) => setSearch(e.target.value)} dir="auto" />
+          </div>
+          <div className="chips">
+            {[
+              ['all', t('filterAll')],
+              ['unread', `${t('filterUnread')}${totalUnread ? ` ${totalUnread}` : ''}`],
+              ['groups', t('filterGroups')],
+            ].map(([k, label]) => (
+              <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="user-list">
@@ -104,9 +189,11 @@ export default function Sidebar({
                 <div key={i.key} className={`user-row ${selectedKey === i.key ? 'active' : ''}`}>
                   <button
                     className="user-main"
-                    onClick={() => onSelect(i.kind === 'direct' ? { type: 'direct', uid: i.user.uid } : { type: 'group', id: i.key })}
+                    onClick={() =>
+                      onSelect(i.kind === 'direct' ? { type: 'direct', uid: i.user.uid } : { type: 'group', id: i.key })
+                    }
                   >
-                    <Avatar name={i.name} group={i.kind === 'group'} />
+                    <Avatar name={i.name} group={i.kind === 'group'} photo={i.user && i.user.photo} />
                     <div className="grow left">
                       <div className="row-top">
                         <span className="name ellipsis">{i.name}</span>
@@ -115,9 +202,7 @@ export default function Sidebar({
                         </span>
                       </div>
                       <div className="row-top">
-                        <span className="muted small ellipsis" dir="auto">
-                          {previewOf(i.chat)}
-                        </span>
+                        <Preview chat={i.chat} me={me} text={previewOf(i.chat)} />
                         {unread > 0 && <span className="badge">{unread}</span>}
                       </div>
                     </div>
@@ -148,6 +233,16 @@ export default function Sidebar({
           </div>
         </>
       )}
+
+      <nav className="tabs">
+        {TABS.map(([k, icon, label]) => (
+          <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            <span className="tab-ico">{icon}</span>
+            <span>{label}</span>
+            {k === 'chats' && totalUnread > 0 && <span className="badge">{totalUnread}</span>}
+          </button>
+        ))}
+      </nav>
     </aside>
   );
 }

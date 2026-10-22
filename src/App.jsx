@@ -1,15 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { auth, db, configMissing } from './firebase';
 import Login from './components/Login.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import ChatWindow from './components/ChatWindow.jsx';
 import Settings from './components/Settings.jsx';
 import NewGroup from './components/NewGroup.jsx';
-import { CallScreen, IncomingCall } from './components/CallScreen.jsx';
+import Starred from './components/Starred.jsx';
+import { CallScreen, IncomingCall, IncomingRoomCall, RoomScreen } from './components/CallScreen.jsx';
 import { useCall } from './useCall.js';
-import { LangCtx, detectLang, makeT } from './i18n.js';
+import { useRoom } from './useRoom.js';
+import { useLiveTranslate } from './useLiveTranslate.js';
+import { LangCtx, detectLang, makeT, sameLang } from './i18n.js';
 import { chatIdFor, tsMs } from './utils.js';
 import { ding } from './sound.js';
 
@@ -21,6 +34,14 @@ const readLS = (k) => {
   }
 };
 
+const meetParam = () => {
+  try {
+    return new URLSearchParams(window.location.search).get('meet') || '';
+  } catch (e) {
+    return '';
+  }
+};
+
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = ekhono check hocche
   const [profile, setProfile] = useState(null);
@@ -28,16 +49,31 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [usersError, setUsersError] = useState('');
   const [chats, setChats] = useState([]);
+  const [starredList, setStarredList] = useState([]);
   const [sel, setSel] = useState(null); // {type:'direct', uid} | {type:'group', id}
   const [showSettings, setShowSettings] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
+  const [showStarred, setShowStarred] = useState(false);
+  const [dismissed, setDismissed] = useState({});
+  const [tick, setTick] = useState(0);
+  const [pendingMeet, setPendingMeet] = useState(meetParam());
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveSpeak, setLiveSpeak] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => readLS('cc_sound') !== 'off');
   const [prefLang, setPrefLang] = useState(() => readLS('cc_lang') || detectLang());
 
   const ensured = useRef(null);
   const seenChats = useRef(null);
   const selRef = useRef(null);
+  const soundRef = useRef(soundOn);
+  soundRef.current = soundOn;
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUser(u || null)), []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 5000);
+    return () => clearInterval(id);
+  }, []);
 
   const lang = (profile && profile.lang) || prefLang;
   const t = useMemo(() => makeT(lang), [lang]);
@@ -92,6 +128,7 @@ export default function App() {
       lang,
       autoTranslate: profile ? profile.autoTranslate !== false : true,
       about: (profile && profile.about) || '',
+      photo: (profile && profile.photo) || '',
     };
   }, [user, profile, lang]);
 
@@ -128,6 +165,19 @@ export default function App() {
     );
   }, [user]);
 
+  // Starred messages
+  useEffect(() => {
+    if (!user) {
+      setStarredList([]);
+      return undefined;
+    }
+    return onSnapshot(
+      collection(db, 'users', user.uid, 'starred'),
+      (snap) => setStarredList(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => {}
+    );
+  }, [user]);
+
   // Amar sob chat (direct + group)
   useEffect(() => {
     seenChats.current = null;
@@ -152,8 +202,8 @@ export default function App() {
           const s = selRef.current;
           list.forEach((c) => {
             const was = prev[c.id] || 0;
-            const isOpen = s && (s.chatId === c.id) && document.visibilityState === 'visible';
-            if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !isOpen) ding();
+            const isOpen = s && s.chatId === c.id && document.visibilityState === 'visible';
+            if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !isOpen && soundRef.current) ding();
           });
         }
         seenChats.current = nowMap;
@@ -178,7 +228,123 @@ export default function App() {
     return m;
   }, [chats]);
 
+  const starredIds = useMemo(() => new Set(starredList.map((s) => s.id)), [starredList]);
+
   const call = useCall(me, t);
+  const room = useRoom(me);
+
+  // Call-e live translate: bhasha alada hole auto chalu
+  const callId = call.active ? call.active.id : null;
+  const peerLang = call.active && usersMap[call.active.peerId] ? usersMap[call.active.peerId].lang : null;
+  useEffect(() => {
+    setLiveSpeak(false);
+    setLiveOn(!!(callId && me && peerLang && !sameLang(peerLang, me.lang)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId]);
+  const live = useLiveTranslate({ callId, enabled: !!callId && liveOn, speak: liveSpeak, me: me || {} });
+
+  // ---- actions ----
+  const onStar = async ({ chatId, chatTitle, m, on }) => {
+    const ref = doc(db, 'users', me.uid, 'starred', `${chatId}_${m.id}`);
+    try {
+      if (on) {
+        await setDoc(ref, {
+          chatId,
+          msgId: m.id,
+          from: m.from,
+          fromName: (usersMap[m.from] && usersMap[m.from].name) || m.fromName || '',
+          type: m.type,
+          text: m.text || '',
+          chatTitle,
+          createdMs: tsMs(m.createdAt) || Date.now(),
+          starredMs: Date.now(),
+        });
+      } else {
+        await deleteDoc(ref);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  };
+
+  const openStarred = (s) => {
+    setShowStarred(false);
+    const c = chatsById[s.chatId];
+    if (c && c.isGroup) setSel({ type: 'group', id: c.id });
+    else {
+      const other = s.chatId.split('_').find((x) => x !== me.uid);
+      if (other) setSel({ type: 'direct', uid: other });
+    }
+  };
+
+  const readAll = () => {
+    chats.forEach((c) => {
+      if (((c.unread && c.unread[me.uid]) || 0) > 0) {
+        updateDoc(doc(db, 'chats', c.id), {
+          [`lastRead.${me.uid}`]: serverTimestamp(),
+          [`unread.${me.uid}`]: 0,
+        }).catch(() => {});
+      }
+    });
+  };
+
+  const startGroupCall = async (chat, type) => {
+    if (call.active || room.room) return;
+    const callRef = doc(collection(db, 'chats', chat.id, 'gcalls'));
+    const chatRef = doc(db, 'chats', chat.id);
+    try {
+      await setDoc(callRef, { type, startedBy: me.uid, startedMs: Date.now() });
+      await updateDoc(chatRef, {
+        activeCall: {
+          id: callRef.id,
+          type,
+          startedBy: me.uid,
+          startedByName: me.name,
+          startedMs: Date.now(),
+        },
+      });
+    } catch (e) {
+      console.warn(e);
+      return;
+    }
+    room.join({
+      kind: 'group',
+      base: ['chats', chat.id, 'gcalls', callRef.id],
+      title: chat.name,
+      type,
+      onEmpty: () => updateDoc(chatRef, { activeCall: null }),
+    });
+  };
+
+  const joinGroupCall = (chat) => {
+    if (call.active || room.room || !chat.activeCall) return;
+    room.join({
+      kind: 'group',
+      base: ['chats', chat.id, 'gcalls', chat.activeCall.id],
+      title: chat.name,
+      type: chat.activeCall.type,
+      onEmpty: () => updateDoc(doc(db, 'chats', chat.id), { activeCall: null }),
+    });
+  };
+
+  const joinMeeting = async ({ code, title, type }) => {
+    if (call.active || room.room) return;
+    await room.join({ kind: 'meeting', base: ['meetings', code], title, type, code });
+  };
+
+  // Group call-er incoming ring (shuru hoyar 45s-er moddhe)
+  const ringingChat =
+    me && !call.active && !room.room && !call.incoming
+      ? chats.find(
+          (c) =>
+            c.isGroup &&
+            c.activeCall &&
+            c.activeCall.startedBy !== me.uid &&
+            Date.now() - (c.activeCall.startedMs || 0) < 45000 &&
+            !dismissed[c.activeCall.id]
+        )
+      : null;
+  void tick;
 
   // Ekhon kon chat khola
   let chatProps = null;
@@ -206,7 +372,13 @@ export default function App() {
     );
   }
 
-  if (user === undefined) return <div className="splash">💬</div>;
+  if (user === undefined) {
+    return (
+      <div className="splash">
+        <img src="/logo.png" alt="" width="96" height="96" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -226,6 +398,9 @@ export default function App() {
     );
   }
 
+  const busy = !!call.active || !!room.room;
+  const errorObj = call.error || room.error;
+
   return (
     <LangCtx.Provider value={langValue}>
       <div className={`app ${chatProps ? 'chat-open' : ''}`}>
@@ -239,9 +414,12 @@ export default function App() {
           selectedKey={chatProps ? chatProps.chatId : null}
           onSelect={setSel}
           onCall={call.startCall}
-          callBusy={!!call.active}
+          callBusy={busy}
           onSettings={() => setShowSettings(true)}
           onNewGroup={() => setShowGroup(true)}
+          onStarred={() => setShowStarred(true)}
+          onReadAll={readAll}
+          onJoinMeeting={joinMeeting}
         />
 
         {chatProps ? (
@@ -253,21 +431,39 @@ export default function App() {
             group={chatProps.group}
             chat={chatProps.chat}
             usersMap={usersMap}
+            starredIds={starredIds}
+            onStar={onStar}
             onBack={() => setSel(null)}
             onCall={call.startCall}
-            callBusy={!!call.active}
+            callBusy={busy}
+            onGroupCall={startGroupCall}
+            onJoinRoom={joinGroupCall}
           />
         ) : (
           <section className="chat placeholder">
             <div>
-              <div className="logo">💬</div>
-              <h2>ChatCall</h2>
+              <img className="logo-img" src="/logo.png" alt="BewonChat" />
+              <h2>BewonChat</h2>
               <p className="muted">{t('tagline')}</p>
             </div>
           </section>
         )}
 
-        {showSettings && <Settings me={me} onClose={() => setShowSettings(false)} />}
+        {showSettings && (
+          <Settings
+            me={me}
+            soundOn={soundOn}
+            onSound={(v) => {
+              setSoundOn(v);
+              try {
+                localStorage.setItem('cc_sound', v ? 'on' : 'off');
+              } catch (e) {
+                /* ignore */
+              }
+            }}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
         {showGroup && (
           <NewGroup
             me={me}
@@ -279,9 +475,58 @@ export default function App() {
             }}
           />
         )}
+        {showStarred && (
+          <Starred items={starredList} onOpen={openStarred} onClose={() => setShowStarred(false)} />
+        )}
 
-        {call.incoming && !call.active && (
+        {pendingMeet && !busy && (
+          <div className="modal-back">
+            <div className="modal">
+              <h2>🎥 {t('joinMeetPrompt', { code: pendingMeet })}</h2>
+              <div className="modal-actions">
+                <button
+                  className="primary"
+                  onClick={() => {
+                    const code = pendingMeet;
+                    setPendingMeet('');
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname);
+                    } catch (e) {
+                      /* ignore */
+                    }
+                    joinMeeting({ code, title: code, type: 'video' });
+                  }}
+                >
+                  {t('join')}
+                </button>
+                <button
+                  className="ghost"
+                  onClick={() => {
+                    setPendingMeet('');
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname);
+                    } catch (e) {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {call.incoming && !call.active && !room.room && (
           <IncomingCall call={call.incoming} onAccept={call.acceptCall} onReject={call.rejectCall} />
+        )}
+
+        {ringingChat && (
+          <IncomingRoomCall
+            chat={ringingChat}
+            onJoin={() => joinGroupCall(ringingChat)}
+            onDismiss={() => setDismissed((d) => ({ ...d, [ringingChat.activeCall.id]: true }))}
+          />
         )}
 
         {call.active && (
@@ -292,12 +537,46 @@ export default function App() {
             onEnd={call.endCall}
             onToggleMic={call.toggleMic}
             onToggleCam={call.toggleCam}
+            onSwitchCam={call.switchCamera}
+            onShare={call.toggleShare}
+            sharing={call.sharing}
+            live={{
+              on: liveOn,
+              toggle: () => setLiveOn((v) => !v),
+              speak: liveSpeak,
+              toggleSpeak: () => setLiveSpeak((v) => !v),
+              lines: live.lines,
+              micState: live.micState,
+            }}
           />
         )}
 
-        {call.error && (
-          <div className="toast" onClick={call.clearError}>
-            {t(call.error.key, { name: call.error.name })}
+        {room.room && (
+          <RoomScreen
+            me={me}
+            room={room.room}
+            localStream={room.localStream}
+            streams={room.streams}
+            participants={room.participants}
+            usersMap={usersMap}
+            sharing={room.sharing}
+            onLeave={room.leave}
+            onToggleMic={room.toggleMic}
+            onToggleCam={room.toggleCam}
+            onSwitchCam={room.switchCamera}
+            onShare={room.toggleShare}
+          />
+        )}
+
+        {errorObj && (
+          <div
+            className="toast"
+            onClick={() => {
+              call.clearError();
+              room.clearError();
+            }}
+          >
+            {t(errorObj.key, { name: errorObj.name })}
           </div>
         )}
       </div>

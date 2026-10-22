@@ -16,6 +16,15 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        debug {
+            // Fixed key: every build is signed the same, so new APK installs over the old one
+            storeFile file('bewon.keystore')
+            storePassword 'bewonchat'
+            keyAlias 'bewon'
+            keyPassword 'bewonchat'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false

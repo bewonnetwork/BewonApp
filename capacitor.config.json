@@ -1,6 +1,6 @@
 {
   "appId": "com.chatcall.app",
-  "appName": "ChatCall",
+  "appName": "BewonChat",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

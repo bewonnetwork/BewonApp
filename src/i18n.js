@@ -1,23 +1,69 @@
 import { createContext, useContext } from 'react';
 
+// Top 50 global languages. speech = BCP-47 code (voice recognition / text-to-speech)
 export const LANGS = [
-  { code: 'en', name: 'English' },
-  { code: 'bn', name: 'বাংলা (Bangla)' },
-  { code: 'hi', name: 'हिन्दी (Hindi)' },
-  { code: 'ur', name: 'اردو (Urdu)' },
-  { code: 'ar', name: 'العربية (Arabic)' },
-  { code: 'es', name: 'Español' },
-  { code: 'fr', name: 'Français' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'pt', name: 'Português' },
-  { code: 'ru', name: 'Русский' },
-  { code: 'tr', name: 'Türkçe' },
-  { code: 'id', name: 'Bahasa Indonesia' },
-  { code: 'ms', name: 'Bahasa Melayu' },
-  { code: 'zh-CN', name: '中文 (Chinese)' },
-  { code: 'ja', name: '日本語 (Japanese)' },
-  { code: 'ko', name: '한국어 (Korean)' },
+  { code: 'en', name: 'English', speech: 'en-US' },
+  { code: 'zh-CN', name: '中文 (Chinese)', speech: 'zh-CN' },
+  { code: 'hi', name: 'हिन्दी (Hindi)', speech: 'hi-IN' },
+  { code: 'es', name: 'Español (Spanish)', speech: 'es-ES' },
+  { code: 'fr', name: 'Français (French)', speech: 'fr-FR' },
+  { code: 'ar', name: 'العربية (Arabic)', speech: 'ar-SA' },
+  { code: 'bn', name: 'বাংলা (Bangla)', speech: 'bn-BD' },
+  { code: 'pt', name: 'Português (Portuguese)', speech: 'pt-BR' },
+  { code: 'ru', name: 'Русский (Russian)', speech: 'ru-RU' },
+  { code: 'ur', name: 'اردو (Urdu)', speech: 'ur-PK' },
+  { code: 'id', name: 'Bahasa Indonesia', speech: 'id-ID' },
+  { code: 'de', name: 'Deutsch (German)', speech: 'de-DE' },
+  { code: 'ja', name: '日本語 (Japanese)', speech: 'ja-JP' },
+  { code: 'sw', name: 'Kiswahili (Swahili)', speech: 'sw-KE' },
+  { code: 'mr', name: 'मराठी (Marathi)', speech: 'mr-IN' },
+  { code: 'te', name: 'తెలుగు (Telugu)', speech: 'te-IN' },
+  { code: 'tr', name: 'Türkçe (Turkish)', speech: 'tr-TR' },
+  { code: 'ta', name: 'தமிழ் (Tamil)', speech: 'ta-IN' },
+  { code: 'vi', name: 'Tiếng Việt (Vietnamese)', speech: 'vi-VN' },
+  { code: 'ko', name: '한국어 (Korean)', speech: 'ko-KR' },
+  { code: 'it', name: 'Italiano (Italian)', speech: 'it-IT' },
+  { code: 'th', name: 'ไทย (Thai)', speech: 'th-TH' },
+  { code: 'gu', name: 'ગુજરાતી (Gujarati)', speech: 'gu-IN' },
+  { code: 'fa', name: 'فارسی (Persian)', speech: 'fa-IR' },
+  { code: 'pl', name: 'Polski (Polish)', speech: 'pl-PL' },
+  { code: 'ps', name: 'پښتو (Pashto)', speech: 'ps-AF' },
+  { code: 'kn', name: 'ಕನ್ನಡ (Kannada)', speech: 'kn-IN' },
+  { code: 'ml', name: 'മലയാളം (Malayalam)', speech: 'ml-IN' },
+  { code: 'pa', name: 'ਪੰਜਾਬੀ (Punjabi)', speech: 'pa-IN' },
+  { code: 'uk', name: 'Українська (Ukrainian)', speech: 'uk-UA' },
+  { code: 'nl', name: 'Nederlands (Dutch)', speech: 'nl-NL' },
+  { code: 'my', name: 'မြန်မာ (Burmese)', speech: 'my-MM' },
+  { code: 'ha', name: 'Hausa', speech: 'ha-NG' },
+  { code: 'ro', name: 'Română (Romanian)', speech: 'ro-RO' },
+  { code: 'ne', name: 'नेपाली (Nepali)', speech: 'ne-NP' },
+  { code: 'si', name: 'සිංහල (Sinhala)', speech: 'si-LK' },
+  { code: 'ms', name: 'Bahasa Melayu (Malay)', speech: 'ms-MY' },
+  { code: 'tl', name: 'Filipino', speech: 'fil-PH' },
+  { code: 'el', name: 'Ελληνικά (Greek)', speech: 'el-GR' },
+  { code: 'cs', name: 'Čeština (Czech)', speech: 'cs-CZ' },
+  { code: 'sv', name: 'Svenska (Swedish)', speech: 'sv-SE' },
+  { code: 'hu', name: 'Magyar (Hungarian)', speech: 'hu-HU' },
+  { code: 'iw', name: 'עברית (Hebrew)', speech: 'he-IL' },
+  { code: 'az', name: 'Azərbaycan (Azerbaijani)', speech: 'az-AZ' },
+  { code: 'uz', name: 'Oʻzbek (Uzbek)', speech: 'uz-UZ' },
+  { code: 'am', name: 'አማርኛ (Amharic)', speech: 'am-ET' },
+  { code: 'sr', name: 'Српски (Serbian)', speech: 'sr-RS' },
+  { code: 'bg', name: 'Български (Bulgarian)', speech: 'bg-BG' },
+  { code: 'da', name: 'Dansk (Danish)', speech: 'da-DK' },
+  { code: 'fi', name: 'Suomi (Finnish)', speech: 'fi-FI' },
 ];
+
+export const speechCode = (code = 'en') => {
+  const f = LANGS.find((l) => l.code === code) || LANGS.find((l) => l.code.split('-')[0] === code.split('-')[0]);
+  return f ? f.speech : 'en-US';
+};
+
+export const sameLang = (a = '', b = '') => {
+  const x = a === 'he' ? 'iw' : a;
+  const y = b === 'he' ? 'iw' : b;
+  return x.split('-')[0] === y.split('-')[0];
+};
 
 export const langName = (code = '') => {
   const found = LANGS.find((l) => l.code === code || l.code.split('-')[0] === code.split('-')[0]);
@@ -28,6 +74,8 @@ export const detectLang = () => {
   const n = (typeof navigator !== 'undefined' && navigator.language) || 'en';
   const base = n.split('-')[0];
   if (base === 'zh') return 'zh-CN';
+  if (base === 'he') return 'iw';
+  if (base === 'fil') return 'tl';
   return LANGS.some((l) => l.code === base) ? base : 'en';
 };
 
@@ -116,7 +164,7 @@ const en = {
   reject: 'Decline',
 
   about: 'About',
-  aboutPh: 'Hey there! I am using ChatCall',
+  aboutPh: 'Hey there! I am using BewonChat',
   autoTr: 'Translate messages automatically',
   autoTrHint: 'Messages in other languages appear in your language.',
   save: 'Save',
@@ -128,6 +176,54 @@ const en = {
   pickMembers: 'Choose members',
   create: 'Create group',
   groupNeed: 'Enter a name and choose at least one member.',
+
+  liveTr: 'Live translate',
+  speakTr: 'Speak translation',
+  liveNoMic:
+    "Your speech can't be captured here (use Chrome on a PC). You will still see the other person's translated captions.",
+  liveDenied: 'Microphone for live translate was blocked.',
+  switchCam: 'Switch camera',
+  shareScreen: 'Share screen',
+  stopShare: 'Stop sharing',
+  camFail: 'Could not switch the camera.',
+  groupCall: 'Group call',
+  joinCall: 'Join call',
+  groupCallSub: '{name} started a group call',
+  inCall: '{n} in call',
+  meetings: 'Meet',
+  newMeeting: 'New meeting',
+  joinMeeting: 'Join with a code',
+  meetingCode: 'Meeting code',
+  codePh: 'Enter meeting code',
+  meetNotFound: 'Meeting not found. Check the code.',
+  copyLink: 'Copy link',
+  copied: 'Copied ✓',
+  meetTitlePh: 'Meeting title (optional)',
+  startVideo: '🎥 Video meeting',
+  startAudio: '📞 Voice meeting',
+  meetHint: 'Share the code or link with anyone who has BewonChat. Works for a small group (up to about 6 people).',
+  news: 'News',
+  newsHint: 'Global news portals',
+  readInLang: 'Read in my language',
+  starred: 'Starred messages',
+  noStarred: 'No starred messages yet.',
+  star: 'Star',
+  unstar: 'Unstar',
+  reply: 'Reply',
+  copy: 'Copy',
+  readAll: 'Mark all as read',
+  filterAll: 'All',
+  filterUnread: 'Unread',
+  filterGroups: 'Groups',
+  menu: 'Menu',
+  sound: 'Notification sounds',
+  downloadApp: 'Download Android app',
+  photoChange: 'Change photo',
+  replyingTo: 'Replying to {name}',
+  joinMeetPrompt: 'Join meeting {code}?',
+  join: 'Join',
+  photoMsg: 'Photo',
+  voiceShort: 'Voice message',
 };
 
 const bn = {
@@ -215,7 +311,7 @@ const bn = {
   reject: 'কাটুন',
 
   about: 'সম্পর্কে',
-  aboutPh: 'আমি ChatCall ব্যবহার করছি',
+  aboutPh: 'আমি BewonChat ব্যবহার করছি',
   autoTr: 'স্বয়ংক্রিয়ভাবে মেসেজ অনুবাদ করুন',
   autoTrHint: 'অন্য ভাষার মেসেজ আপনার ভাষায় দেখানো হবে।',
   save: 'সেভ',
@@ -227,6 +323,54 @@ const bn = {
   pickMembers: 'সদস্য বাছুন',
   create: 'গ্রুপ খুলুন',
   groupNeed: 'নাম লিখুন এবং অন্তত একজন সদস্য বাছুন।',
+
+  liveTr: 'লাইভ অনুবাদ',
+  speakTr: 'অনুবাদ জোরে শোনান',
+  liveNoMic:
+    'এই ডিভাইসে আপনার কথা ধরা যাচ্ছে না (পিসিতে Chrome ব্যবহার করুন)। তবে অন্যজনের অনুবাদ করা ক্যাপশন আপনি দেখতে পাবেন।',
+  liveDenied: 'লাইভ অনুবাদের জন্য মাইক ব্লক করা আছে।',
+  switchCam: 'ক্যামেরা বদলান',
+  shareScreen: 'স্ক্রিন শেয়ার',
+  stopShare: 'শেয়ার বন্ধ',
+  camFail: 'ক্যামেরা বদলানো যায়নি।',
+  groupCall: 'গ্রুপ কল',
+  joinCall: 'কলে যোগ দিন',
+  groupCallSub: '{name} গ্রুপ কল শুরু করেছে',
+  inCall: '{n} জন কলে আছে',
+  meetings: 'মিট',
+  newMeeting: 'নতুন মিটিং',
+  joinMeeting: 'কোড দিয়ে যোগ দিন',
+  meetingCode: 'মিটিং কোড',
+  codePh: 'মিটিং কোড লিখুন',
+  meetNotFound: 'মিটিং পাওয়া যায়নি। কোডটি দেখুন।',
+  copyLink: 'লিংক কপি',
+  copied: 'কপি হয়েছে ✓',
+  meetTitlePh: 'মিটিংয়ের নাম (ঐচ্ছিক)',
+  startVideo: '🎥 ভিডিও মিটিং',
+  startAudio: '📞 ভয়েস মিটিং',
+  meetHint: 'যাদের BewonChat আছে তাদের কোড বা লিংক দিন। ছোট গ্রুপের জন্য (প্রায় ৬ জন পর্যন্ত)।',
+  news: 'খবর',
+  newsHint: 'বিশ্বের নিউজ পোর্টাল',
+  readInLang: 'আমার ভাষায় পড়ুন',
+  starred: 'তারকা চিহ্নিত মেসেজ',
+  noStarred: 'এখনও কোনো তারকা চিহ্নিত মেসেজ নেই।',
+  star: 'তারকা দিন',
+  unstar: 'তারকা সরান',
+  reply: 'রিপ্লাই',
+  copy: 'কপি',
+  readAll: 'সব পড়া হয়েছে চিহ্নিত করুন',
+  filterAll: 'সব',
+  filterUnread: 'অপঠিত',
+  filterGroups: 'গ্রুপ',
+  menu: 'মেনু',
+  sound: 'নোটিফিকেশন সাউন্ড',
+  downloadApp: 'অ্যান্ড্রয়েড অ্যাপ ডাউনলোড',
+  photoChange: 'ছবি বদলান',
+  replyingTo: '{name}-কে রিপ্লাই',
+  joinMeetPrompt: '{code} মিটিংয়ে যোগ দেবেন?',
+  join: 'যোগ দিন',
+  photoMsg: 'ছবি',
+  voiceShort: 'ভয়েস মেসেজ',
 };
 
 const STR = { en, bn };

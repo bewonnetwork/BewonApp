@@ -6,6 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { LANGS, useT } from '../i18n.js';
+import { APK_URL } from '../config.js';
 
 const errKey = (code) => {
   switch (code) {
@@ -68,8 +69,8 @@ export default function Login({ lang, onLang }) {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div className="logo">💬</div>
-        <h1>ChatCall</h1>
+        <img className="logo-img" src="/logo.png" alt="BewonChat" />
+        <h1>BewonChat</h1>
         <p className="sub">{t('tagline')}</p>
 
         <label className="field-label" htmlFor="lang">
@@ -122,6 +123,10 @@ export default function Login({ lang, onLang }) {
         >
           {mode === 'signup' ? t('haveAcc') : t('newHere')}
         </button>
+
+        <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
+          ⬇ {t('downloadApp')}
+        </a>
       </form>
     </div>
   );
