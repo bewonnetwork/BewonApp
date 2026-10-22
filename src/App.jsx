@@ -54,7 +54,13 @@ export default function App() {
 
   return (
     <div className={`app ${peer ? 'chat-open' : ''}`}>
-      <Sidebar me={me} selectedUid={peer?.uid} onSelect={setPeer} />
+      <Sidebar
+        me={me}
+        selectedUid={peer?.uid}
+        onSelect={setPeer}
+        onCall={call.startCall}
+        callBusy={!!call.active}
+      />
 
       {peer ? (
         <ChatWindow

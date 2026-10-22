@@ -17,27 +17,37 @@ const timeLabel = (ts) => {
   return d.toLocaleDateString([], { day: '2-digit', month: 'short' });
 };
 
-export default function Sidebar({ me, selectedUid, onSelect }) {
+export default function Sidebar({ me, selectedUid, onSelect, onCall, callBusy }) {
   const [users, setUsers] = useState([]);
   const [chats, setChats] = useState({});
   const [search, setSearch] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map((d) => d.data()).filter((u) => u.uid !== me.uid));
-    });
+    const unsub = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        setLoadError('');
+        setUsers(snap.docs.map((d) => d.data()).filter((u) => u.uid !== me.uid));
+      },
+      (err) => setLoadError(`User list load hoyni (${err.code}). Firestore rules deploy kora ache kina dekho.`)
+    );
     return unsub;
   }, [me.uid]);
 
   useEffect(() => {
     const q = query(collection(db, 'chats'), where('members', 'array-contains', me.uid));
-    const unsub = onSnapshot(q, (snap) => {
-      const map = {};
-      snap.docs.forEach((d) => {
-        map[d.id] = d.data();
-      });
-      setChats(map);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const map = {};
+        snap.docs.forEach((d) => {
+          map[d.id] = d.data();
+        });
+        setChats(map);
+      },
+      () => {}
+    );
     return unsub;
   }, [me.uid]);
 
@@ -76,30 +86,45 @@ export default function Sidebar({ me, selectedUid, onSelect }) {
       </div>
 
       <div className="user-list">
-        {list.length === 0 && (
+        {loadError && <div className="empty">{loadError}</div>}
+        {!loadError && list.length === 0 && (
           <div className="empty">
             {users.length === 0
-              ? 'Ekhono ar keu join kore nai. Bondhuke ei app-e account khulte bolo.'
+              ? 'Ekhono ar keu join kore nai. Onno device/browser theke onno email diye account kholo, tahole ekhane dekhabe.'
               : 'Kauke paoa jayni.'}
           </div>
         )}
         {list.map((u) => (
-          <button
-            key={u.uid}
-            className={`user-row ${selectedUid === u.uid ? 'active' : ''}`}
-            onClick={() => onSelect(u)}
-          >
-            <div className="avatar">{initials(u.name)}</div>
-            <div className="grow left">
-              <div className="row-top">
-                <span className="name">{u.name}</span>
-                <span className="muted small">{timeLabel(u.chat?.updatedAt)}</span>
+          <div key={u.uid} className={`user-row ${selectedUid === u.uid ? 'active' : ''}`}>
+            <button className="user-main" onClick={() => onSelect(u)}>
+              <div className="avatar">{initials(u.name)}</div>
+              <div className="grow left">
+                <div className="row-top">
+                  <span className="name">{u.name}</span>
+                  <span className="muted small">{timeLabel(u.chat?.updatedAt)}</span>
+                </div>
+                <div className="muted small ellipsis">
+                  {u.chat?.lastMessage || 'Message pathao'}
+                </div>
               </div>
-              <div className="muted small ellipsis">
-                {u.chat?.lastMessage || 'Message pathao'}
-              </div>
-            </div>
-          </button>
+            </button>
+            <button
+              className="icon-btn"
+              title="Voice call"
+              disabled={callBusy}
+              onClick={() => onCall(u, 'audio')}
+            >
+              📞
+            </button>
+            <button
+              className="icon-btn"
+              title="Video call"
+              disabled={callBusy}
+              onClick={() => onCall(u, 'video')}
+            >
+              🎥
+            </button>
+          </div>
         ))}
       </div>
     </aside>
