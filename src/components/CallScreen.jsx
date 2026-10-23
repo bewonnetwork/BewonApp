@@ -11,6 +11,19 @@ function StreamVideo({ stream, muted, className }) {
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream || null;
   }, [stream]);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !stream) return undefined;
+    const tryPlay = () => v.play && v.play().catch(() => {});
+    tryPlay();
+    // Autoplay block hole je kono tap-e abar chalu hobe
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('touchend', tryPlay);
+    return () => {
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('touchend', tryPlay);
+    };
+  }, [stream]);
   return <video ref={ref} className={className} autoPlay playsInline muted={muted} />;
 }
 

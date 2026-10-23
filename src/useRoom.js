@@ -11,22 +11,9 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { ICE_CONFIG } from './ice.js';
 import { createMediaController } from './media.js';
 
-const ICE_CONFIG = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-  ],
-};
 
 /**
  * Group call (chat-er bhitore) ar Meeting (code diye) -- duto-i ekoi "room" logic.

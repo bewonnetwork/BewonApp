@@ -10,23 +10,9 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { ICE_CONFIG } from './ice.js';
 import { createMediaController } from './media.js';
 
-const ICE_CONFIG = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    // Free public TURN (best-effort). Mobile data-te call connect hote help kore.
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-  ],
-};
 
 const RING_TIMEOUT_MS = 45000;
 
