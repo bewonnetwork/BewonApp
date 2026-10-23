@@ -1,3 +1,4 @@
+import Icon from './Icon.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -66,7 +67,7 @@ export default function CallLog({ me, usersMap, onCall, callBusy }) {
                   <span className="muted small">{fmtDayOrTime(c.createdMs)}</span>
                 </div>
                 <div className={`small ${bad ? 'bad' : 'muted'}`}>
-                  {c.dir === 'out' ? '↗' : '↙'} {c.type === 'video' ? '🎥' : '📞'} {label}
+                  {c.dir === 'out' ? '↗' : '↙'}  {label}
                 </div>
               </div>
             </div>
@@ -78,7 +79,7 @@ export default function CallLog({ me, usersMap, onCall, callBusy }) {
                   title={t('voiceCall')}
                   onClick={() => onCall(peer, 'audio')}
                 >
-                  📞
+                  <Icon n="phone" size={19} />
                 </button>
                 <button
                   className="icon-btn"
@@ -86,7 +87,7 @@ export default function CallLog({ me, usersMap, onCall, callBusy }) {
                   title={t('videoCall')}
                   onClick={() => onCall(peer, 'video')}
                 >
-                  🎥
+                  <Icon n="video" size={19} />
                 </button>
               </>
             )}

@@ -15,6 +15,7 @@ import {
 import { db } from '../firebase';
 import Avatar from './Avatar.jsx';
 import Message from './Message.jsx';
+import Icon from './Icon.jsx';
 import { useT } from '../i18n.js';
 import { blobToDataURL, compressImage, fmtDur, fmtSeen } from '../utils.js';
 
@@ -42,6 +43,8 @@ export default function ChatWindow({
   callBusy,
   onGroupCall,
   onJoinRoom,
+  locked,
+  onToggleLock,
 }) {
   const { t } = useT();
   const [messages, setMessages] = useState([]);
@@ -225,12 +228,32 @@ export default function ChatWindow({
     }
   };
 
+  const onDoc = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 600 * 1024) {
+      flash(t('fileTooBig'));
+      return;
+    }
+    try {
+      const dataUrl = await blobToDataURL(f);
+      await send(
+        { type: 'file', file: dataUrl, fileName: f.name, fileSize: f.size, mime: f.type || '' },
+        'file',
+        f.name
+      );
+    } catch (err) {
+      flash(t('sendFail'));
+    }
+  };
+
   const startReply = (m) => {
     setReplyTo({
       id: m.id,
       name: m.from === me.uid ? me.name : (usersMap[m.from] && usersMap[m.from].name) || m.fromName || '',
       kind: m.type,
-      text: m.type === 'text' ? (m.text || '').slice(0, 100) : '',
+      text: m.type === 'text' ? (m.text || '').slice(0, 100) : m.type === 'file' ? m.fileName || '' : '',
     });
   };
 
@@ -242,6 +265,7 @@ export default function ChatWindow({
       text: '',
       image: '',
       audio: '',
+      file: '',
     }).catch(() => flash(t('sendFail')));
   };
 
@@ -315,7 +339,7 @@ export default function ChatWindow({
     <section className="chat">
       <header className="chat-head">
         <button className="icon-btn back" onClick={onBack} title={t('back')}>
-          ←
+          <Icon n="back" />
         </button>
         <Avatar name={title} group={!!group} size={40} photo={peer && peer.photo} />
         <div className="grow">
@@ -330,7 +354,7 @@ export default function ChatWindow({
               disabled={callBusy}
               onClick={() => onCall(peer, 'audio')}
             >
-              📞
+              <Icon n="phone" size={20} />
             </button>
             <button
               className="icon-btn"
@@ -338,13 +362,13 @@ export default function ChatWindow({
               disabled={callBusy}
               onClick={() => onCall(peer, 'video')}
             >
-              🎥
+              <Icon n="video" size={21} />
             </button>
           </>
         )}
         {group && fresh(chat && chat.activeCall) && (
           <button className="pill live" disabled={callBusy} onClick={() => onJoinRoom(chat)}>
-            📞 {t('joinCall')}
+            {t('joinCall')}
           </button>
         )}
         {group && !fresh(chat && chat.activeCall) && (
@@ -355,7 +379,7 @@ export default function ChatWindow({
               disabled={callBusy}
               onClick={() => onGroupCall(chat, 'audio')}
             >
-              📞
+              <Icon n="phone" size={20} />
             </button>
             <button
               className="icon-btn"
@@ -363,10 +387,17 @@ export default function ChatWindow({
               disabled={callBusy}
               onClick={() => onGroupCall(chat, 'video')}
             >
-              🎥
+              <Icon n="video" size={21} />
             </button>
           </>
         )}
+        <button
+          className={`icon-btn ${locked ? 'on' : ''}`}
+          title={locked ? t('unlockChat') : t('lockChat')}
+          onClick={onToggleLock}
+        >
+          <Icon n="lock" size={19} />
+        </button>
       </header>
 
       <div className="messages">
@@ -402,7 +433,7 @@ export default function ChatWindow({
             </div>
           </div>
           <button type="button" className="icon-btn" onClick={() => setReplyTo(null)}>
-            ✖
+            <Icon n="close" size={18} />
           </button>
         </div>
       )}
@@ -420,13 +451,13 @@ export default function ChatWindow({
       {recording ? (
         <div className="composer recording">
           <button type="button" className="icon-btn" title={t('cancel')} onClick={() => finishRec(true)}>
-            🗑
+            <Icon n="trash" size={20} />
           </button>
           <div className="rec-info">
             <span className="rec-dot" /> {t('recording')} {fmtDur(secs)}
           </div>
           <button type="button" className="send" title={t('send')} onClick={() => finishRec(false)}>
-            ➤
+            <Icon n="send" size={19} />
           </button>
         </div>
       ) : (
@@ -437,10 +468,14 @@ export default function ChatWindow({
             title={t('emoji')}
             onClick={() => setShowEmoji((v) => !v)}
           >
-            😊
+            <Icon n="smile" size={22} />
           </button>
+          <label className="icon-btn" title={t('fileDoc')}>
+            <Icon n="clip" size={21} />
+            <input type="file" hidden onChange={onDoc} />
+          </label>
           <label className="icon-btn" title={t('attach')}>
-            📷
+            <Icon n="camera" size={21} />
             <input type="file" accept="image/*" hidden onChange={onFile} />
           </label>
           <input
@@ -451,11 +486,11 @@ export default function ChatWindow({
           />
           {text.trim() ? (
             <button className="send" title={t('send')}>
-              ➤
+              <Icon n="send" size={19} />
             </button>
           ) : (
             <button type="button" className="send" title={t('record')} onClick={startRec}>
-              🎤
+              <Icon n="mic" size={20} />
             </button>
           )}
         </form>

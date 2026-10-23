@@ -18,6 +18,10 @@ import ChatWindow from './components/ChatWindow.jsx';
 import Settings from './components/Settings.jsx';
 import NewGroup from './components/NewGroup.jsx';
 import Starred from './components/Starred.jsx';
+import Broadcast from './components/Broadcast.jsx';
+import PinModal from './components/PinModal.jsx';
+import { useLock } from './lock.js';
+import { APK_URL, WEB_URL } from './config.js';
 import { CallScreen, IncomingCall, IncomingRoomCall, RoomScreen } from './components/CallScreen.jsx';
 import { useCall } from './useCall.js';
 import { useRoom } from './useRoom.js';
@@ -54,6 +58,16 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
   const [showStarred, setShowStarred] = useState(false);
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [showLinked, setShowLinked] = useState(false);
+  const [pin, setPin] = useState(null); // { mode, then }
+  const [lockedView, setLockedView] = useState(false);
+  const lock = useLock(user ? user.uid : 'anon');
+  useEffect(() => {
+    const h = () => document.visibilityState === 'hidden' && setLockedView(false);
+    document.addEventListener('visibilitychange', h);
+    return () => document.removeEventListener('visibilitychange', h);
+  }, []);
   const [dismissed, setDismissed] = useState({});
   const [tick, setTick] = useState(0);
   const [pendingMeet, setPendingMeet] = useState(meetParam());
@@ -254,7 +268,7 @@ export default function App() {
           from: m.from,
           fromName: (usersMap[m.from] && usersMap[m.from].name) || m.fromName || '',
           type: m.type,
-          text: m.text || '',
+          text: m.text || m.fileName || '',
           chatTitle,
           createdMs: tsMs(m.createdAt) || Date.now(),
           starredMs: Date.now(),
@@ -420,6 +434,12 @@ export default function App() {
           onStarred={() => setShowStarred(true)}
           onReadAll={readAll}
           onJoinMeeting={joinMeeting}
+          onBroadcast={() => setShowBroadcast(true)}
+          onLinked={() => setShowLinked(true)}
+          lockedIds={lock.ids}
+          lockedView={lockedView}
+          onOpenLocked={() => setPin({ mode: 'verify', then: () => setLockedView(true) })}
+          onCloseLocked={() => setLockedView(false)}
         />
 
         {chatProps ? (
@@ -438,6 +458,17 @@ export default function App() {
             callBusy={busy}
             onGroupCall={startGroupCall}
             onJoinRoom={joinGroupCall}
+            locked={lock.ids.has(chatProps.chatId)}
+            onToggleLock={() => {
+              const id = chatProps.chatId;
+              const doToggle = () => {
+                const was = lock.ids.has(id);
+                lock.toggle(id);
+                if (!was) setSel(null);
+              };
+              if (lock.hasPin) doToggle();
+              else setPin({ mode: 'set', then: doToggle });
+            }}
           />
         ) : (
           <section className="chat placeholder">
@@ -474,6 +505,38 @@ export default function App() {
               setSel({ type: 'group', id });
             }}
           />
+        )}
+        {showBroadcast && (
+          <Broadcast me={me} users={users.filter((u) => u.uid !== me.uid)} onClose={() => setShowBroadcast(false)} />
+        )}
+        {pin && (
+          <PinModal
+            mode={pin.mode}
+            lock={lock}
+            onClose={() => setPin(null)}
+            onDone={() => {
+              const f = pin.then;
+              setPin(null);
+              if (f) f();
+            }}
+          />
+        )}
+        {showLinked && (
+          <div className="modal-back" onClick={() => setShowLinked(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>{t('linkedDevices')}</h2>
+              <p className="muted">{t('linkedInfo')}</p>
+              <a className="link" href={WEB_URL} target="_blank" rel="noopener noreferrer">
+                {WEB_URL}
+              </a>
+              <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
+                {t('downloadApp')}
+              </a>
+              <button className="ghost" onClick={() => setShowLinked(false)}>
+                {t('close')}
+              </button>
+            </div>
+          </div>
         )}
         {showStarred && (
           <Starred items={starredList} onOpen={openStarred} onClose={() => setShowStarred(false)} />

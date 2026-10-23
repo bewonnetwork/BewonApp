@@ -89,3 +89,30 @@ export async function compressImage(file, max = 1024, quality = 0.72) {
     URL.revokeObjectURL(url);
   }
 }
+
+// File kholo: phone-e Share/Save, web-e download
+export async function openFile(m) {
+  const name = m.fileName || 'file';
+  const Cap = typeof window !== 'undefined' ? window.Capacitor : null;
+  if (Cap && Cap.isNativePlatform && Cap.isNativePlatform()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { Share } = await import('@capacitor/share');
+      const r = await Filesystem.writeFile({
+        path: name,
+        data: m.file.split(',')[1],
+        directory: Directory.Cache,
+      });
+      await Share.share({ title: name, url: r.uri });
+      return;
+    } catch (e) {
+      console.warn('openFile', e);
+    }
+  }
+  const a = document.createElement('a');
+  a.href = m.file;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}

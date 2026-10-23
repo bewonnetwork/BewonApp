@@ -7,7 +7,7 @@ export default function Starred({ items, onOpen, onClose }) {
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>⭐ {t('starred')}</h2>
+        <h2>{t('starred')}</h2>
         {sorted.length === 0 && <div className="empty">{t('noStarred')}</div>}
         <div className="pick-list" style={{ border: 0 }}>
           {sorted.map((s) => (

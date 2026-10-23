@@ -20,6 +20,11 @@ service cloud.firestore {
       match /starred/{id} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+
+      // Broadcast list: shudhu nijer
+      match /broadcasts/{id} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Chat (direct ba group): shudhu member-ra dekhte/likhte pare
@@ -49,6 +54,26 @@ service cloud.firestore {
           allow delete: if isChatMember(chatId) && resource.data.to == request.auth.uid;
         }
       }
+    }
+
+    // Status (24 ghonta): sobai dekhe, shudhu malik toiri/delete kore, onno keu shudhu viewedBy-te nijer nam likhte pare
+    match /statuses/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.uid == request.auth.uid
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy'])
+      );
+    }
+
+    // Community: shudhu member-ra
+    match /communities/{id} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn()
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if signedIn() && request.auth.uid in resource.data.members;
     }
 
     // Meeting (code diye): jar kache code ache se-i join korte pare (list kora jay na)

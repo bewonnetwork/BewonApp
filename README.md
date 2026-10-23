@@ -19,6 +19,7 @@ https://bewonapp-bf500.web.app
 - Meeting (Meet/Zoom-er moto): code/link diye join, screen share, front/back camera switch
 - News tab: global news portal link (+ nijer bhasha-y pora)
 - Message kokhono auto-delete hoy na. Offline cache-o ache
+- Updates (Status, 24 ghonta, chobi/text, ke dekhse), Communities, Broadcast list, Locked chats (PIN), Linked devices info, Document/file pathano (max 600 KB)
 - Chat list filter (All / Unread / Groups), Menu (New group, Starred, Mark all read, Settings)
 
 ## File guide (ki file ki kaj kore)
@@ -46,6 +47,8 @@ https://bewonapp-bf500.web.app
 | `src/components/ChatWindow.jsx`, `Message.jsx` | Chat screen, message bubble, voice/chobi pathano |
 | `src/components/CallScreen.jsx` | Call screen, group call/meeting screen |
 | `src/components/Meet.jsx`, `News.jsx`, `CallLog.jsx` | Meeting tab, News tab, Call history |
+| `src/components/Status.jsx`, `Communities.jsx`, `Broadcast.jsx`, `PinModal.jsx`, `Icon.jsx` | Updates/Status, Community, Broadcast, PIN lock, SVG icon |
+| `src/lock.js`, `src/chatSend.js` | Lock-er logic, broadcast pathano |
 | `src/components/Settings.jsx`, `NewGroup.jsx`, `Starred.jsx`, `Avatar.jsx` | Settings, notun group, starred, profile chobi |
 | `src/styles.css` | Shob design |
 
@@ -54,9 +57,10 @@ https://bewonapp-bf500.web.app
 2. Meeting/Group call mesh, tai ~6 jon porjonto. Boro meeting-er jonno alada media server lagbe
 3. Screen share shudhu PC browser-e. Android APK-te Android-er restriction-e kaj kore na
 4. Live translate-e nijer kotha capture shudhu Chrome/Edge (PC) e. APK-te onno pash-er caption dekha jay
-5. Status/Updates, Communities, Broadcast, Linked devices, Locked chat, Parental controls
-6. Blockchain/DeFi, MongoDB: ekhono nai
-7. Video/PDF/file pathano nai (shudhu chobi ar voice)
+5. Parental controls, Subscriptions, Meta AI: nai
+6. Blockchain/DeFi, MongoDB: ekhono nai (tumi bolo ki chao, tarpor banabo)
+7. Video file pathano nai. File max 600 KB (Firebase Storage chhara)
+8. Locked chat-er PIN shudhu oi device-e thake (onno device-e abar lock dite hobe)
 
 ## Firebase-e ja chalu thakte hobe
 - Authentication > Email/Password enabled

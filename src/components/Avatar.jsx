@@ -1,3 +1,4 @@
+import Icon from './Icon.jsx';
 import { colorFor, initials } from '../utils.js';
 
 export default function Avatar({ name, size = 44, group = false, photo }) {
@@ -7,7 +8,7 @@ export default function Avatar({ name, size = 44, group = false, photo }) {
   }
   return (
     <div className="avatar" style={{ ...box, background: group ? '#607d8b' : colorFor(name), color: '#fff' }}>
-      {group ? '👥' : initials(name)}
+      {group ? <Icon n="group" size={size * 0.55} /> : initials(name)}
     </div>
   );
 }

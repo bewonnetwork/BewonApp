@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { translateText } from '../translate.js';
 import { langName, sameLang, useT } from '../i18n.js';
-import { fmtClock, tsMs } from '../utils.js';
+import Icon from './Icon.jsx';
+import { fmtClock, openFile, tsMs } from '../utils.js';
 
 export default function Message({
   m,
@@ -61,9 +62,29 @@ export default function Message({
 
   let body;
   if (m.deleted) {
-    body = <span className="deleted">🚫 {t('deleted')}</span>;
+    body = <span className="deleted">{t('deleted')}</span>;
   } else if (m.type === 'image') {
     body = <img className="msg-img" src={m.image} alt="" onClick={(e) => { e.stopPropagation(); onImage(m.image); }} />;
+  } else if (m.type === 'file') {
+    body = (
+      <button
+        type="button"
+        className="file-card"
+        onClick={(e) => {
+          e.stopPropagation();
+          openFile(m);
+        }}
+      >
+        <span className="file-ico">
+          <Icon n="file" size={24} />
+        </span>
+        <span className="grow left">
+          <span className="ellipsis file-name">{m.fileName}</span>
+          <span className="muted small">{Math.max(1, Math.round((m.fileSize || 0) / 1024))} KB</span>
+        </span>
+        <Icon n="download" size={20} />
+      </button>
+    );
   } else if (m.type === 'audio') {
     body = <audio className="msg-audio" controls preload="metadata" src={m.audio} onClick={(e) => e.stopPropagation()} />;
   } else {
@@ -90,7 +111,7 @@ export default function Message({
             )}
             {!auto && !tr && !loading && !failed && (
               <button type="button" onClick={(e) => { e.stopPropagation(); doTranslate(); }}>
-                🌐 {t('translate')}
+                <Icon n="globe" size={13} /> {t('translate')}
               </button>
             )}
           </div>
@@ -119,10 +140,10 @@ export default function Message({
         )}
         <div className="bubble-body">{body}</div>
         <div className="meta">
-          {starred && <span>⭐</span>}
+          {starred && <Icon n="star" size={11} fill />}
           <span className="time">{pending ? '' : fmtClock(msgMs)}</span>
           {mine && !m.deleted && (
-            <span className={`tick ${read ? 'read' : ''}`}>{pending ? '🕓' : read ? '✓✓' : '✓'}</span>
+            <span className={`tick ${read ? 'read' : ''}`}>{pending ? <Icon n="check" size={14} /> : read ? <Icon n="checks" size={16} /> : <Icon n="check" size={14} />}</span>
           )}
         </div>
       </div>
@@ -135,7 +156,7 @@ export default function Message({
               onReply(m);
             }}
           >
-            ↩ {t('reply')}
+            <Icon n="reply" size={17} /> {t('reply')}
           </button>
           <button
             type="button"
@@ -144,7 +165,7 @@ export default function Message({
               onStar(m, !starred);
             }}
           >
-            {starred ? '☆ ' + t('unstar') : '⭐ ' + t('star')}
+            <Icon n="star" size={17} fill={starred} /> {starred ? t('unstar') : t('star')}
           </button>
           {m.type === 'text' && (
             <button
@@ -158,7 +179,7 @@ export default function Message({
                 }
               }}
             >
-              📋 {t('copy')}
+              <Icon n="copy" size={17} /> {t('copy')}
             </button>
           )}
           {mine && (
@@ -170,7 +191,7 @@ export default function Message({
                 onDelete(m);
               }}
             >
-              🗑 {t('delete')}
+              <Icon n="trash" size={17} /> {t('delete')}
             </button>
           )}
         </div>
