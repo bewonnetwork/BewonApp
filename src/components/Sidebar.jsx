@@ -125,12 +125,10 @@ export default function Sidebar({
   return (
     <aside className="sidebar">
       <header className="side-head">
+        <div className="grow brand">BewonChat</div>
         <button className="avatar-btn" onClick={onSettings} title={t('settings')}>
-          <Avatar name={me.name} photo={me.photo} size={36} />
+          <Avatar name={me.name} photo={me.photo} size={32} />
         </button>
-        <div className="grow">
-          <div className="name ellipsis">{me.name}</div>
-        </div>
         <div className="menu-wrap">
           <button className="icon-btn" title={t('menu')} onClick={() => setMenu((v) => !v)}>
             <Icon n="more" />
@@ -229,26 +227,6 @@ export default function Sidebar({
                       </div>
                     </div>
                   </button>
-                  {i.kind === 'direct' && (
-                    <>
-                      <button
-                        className="icon-btn"
-                        title={t('voiceCall')}
-                        disabled={callBusy}
-                        onClick={() => onCall(i.user, 'audio')}
-                      >
-                        <Icon n="phone" size={19} />
-                      </button>
-                      <button
-                        className="icon-btn"
-                        title={t('videoCall')}
-                        disabled={callBusy}
-                        onClick={() => onCall(i.user, 'video')}
-                      >
-                        <Icon n="video" size={19} />
-                      </button>
-                    </>
-                  )}
                 </div>
               );
             })}
