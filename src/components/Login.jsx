@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { LANGS, useT } from '../i18n.js';
-import { APK_URL } from '../config.js';
+import { APK_URL, IS_NATIVE } from '../config.js';
 
 const errKey = (code) => {
   switch (code) {
@@ -124,9 +124,13 @@ export default function Login({ lang, onLang }) {
           {mode === 'signup' ? t('haveAcc') : t('newHere')}
         </button>
 
+        {!IS_NATIVE && (
+
         <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
           ⬇ {t('downloadApp')}
         </a>
+
+        )}
       </form>
     </div>
   );

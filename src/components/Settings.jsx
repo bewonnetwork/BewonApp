@@ -4,7 +4,7 @@ import { signOut, updateProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { LANGS, useT } from '../i18n.js';
 import { compressImage } from '../utils.js';
-import { APK_URL } from '../config.js';
+import { APK_URL, IS_NATIVE } from '../config.js';
 import Avatar from './Avatar.jsx';
 
 export default function Settings({ me, soundOn, onSound, onClose }) {
@@ -103,9 +103,13 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
           </button>
         </div>
 
+        {!IS_NATIVE && (
+
         <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
           ⬇ {t('downloadApp')}
         </a>
+
+        )}
         <button className="link danger" onClick={() => signOut(auth)}>
           ⎋ {t('logout')}
         </button>

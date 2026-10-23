@@ -227,6 +227,16 @@ export default function Sidebar({
                       </div>
                     </div>
                   </button>
+                  {i.kind === 'direct' && (
+                    <div className="row-calls">
+                      <button className="icon-btn" title={t('voiceCall')} disabled={callBusy} onClick={() => onCall(i.user, 'audio')}>
+                        <Icon n="phone" size={17} />
+                      </button>
+                      <button className="icon-btn" title={t('videoCall')} disabled={callBusy} onClick={() => onCall(i.user, 'video')}>
+                        <Icon n="video" size={18} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

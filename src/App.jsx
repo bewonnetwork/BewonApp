@@ -21,7 +21,7 @@ import Starred from './components/Starred.jsx';
 import Broadcast from './components/Broadcast.jsx';
 import PinModal from './components/PinModal.jsx';
 import { useLock } from './lock.js';
-import { APK_URL, WEB_URL } from './config.js';
+import { APK_URL, IS_NATIVE, WEB_URL } from './config.js';
 import { CallScreen, IncomingCall, IncomingRoomCall, RoomScreen } from './components/CallScreen.jsx';
 import { useCall } from './useCall.js';
 import { useRoom } from './useRoom.js';
@@ -529,9 +529,11 @@ export default function App() {
               <a className="link" href={WEB_URL} target="_blank" rel="noopener noreferrer">
                 {WEB_URL}
               </a>
+              {!IS_NATIVE && (
               <a className="link" href={APK_URL} target="_blank" rel="noopener noreferrer">
                 {t('downloadApp')}
               </a>
+              )}
               <button className="ghost" onClick={() => setShowLinked(false)}>
                 {t('close')}
               </button>
