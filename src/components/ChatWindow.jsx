@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   increment,
   limitToLast,
@@ -16,6 +17,8 @@ import { db } from '../firebase';
 import Avatar from './Avatar.jsx';
 import Message from './Message.jsx';
 import Icon from './Icon.jsx';
+import MediaPanel from './MediaPanel.jsx';
+import GroupInfo from './GroupInfo.jsx';
 import { useT } from '../i18n.js';
 import { blobToDataURL, compressImage, fmtDur, fmtSeen } from '../utils.js';
 
@@ -47,6 +50,8 @@ export default function ChatWindow({
   onToggleLock,
   pref = {},
   onPref = () => {},
+  onForward = () => {},
+  allUsers = [],
 }) {
   const { t } = useT();
   const [messages, setMessages] = useState([]);
@@ -59,6 +64,8 @@ export default function ChatWindow({
   const [secs, setSecs] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
   const [hmenu, setHmenu] = useState(false);
+  const [search, setSearch] = useState(null);
+  const [showInfo, setShowInfo] = useState(false);
 
   const bottomRef = useRef(null);
   const lastTyping = useRef(0);
@@ -211,6 +218,35 @@ export default function ChatWindow({
     await send({ type: 'text', text: body }, 'text', body.slice(0, 120));
   };
 
+  const sendGif = (url) => {
+    setShowEmoji(false);
+    return send({ type: 'gif', gif: url }, 'gif', 'GIF');
+  };
+  const sendSticker = (e) => {
+    setShowEmoji(false);
+    return send({ type: 'sticker', text: e }, 'sticker', e);
+  };
+  const sendLocation = () => {
+    if (!navigator.geolocation) return flash(t('sendFail'));
+    navigator.geolocation.getCurrentPosition(
+      (p) => send({ type: 'location', lat: p.coords.latitude, lng: p.coords.longitude }, 'location', 'Location'),
+      () => flash(t('sendFail')),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+  const reactMsg = (m, e) => {
+    const cur = m.reactions && m.reactions[me.uid];
+    updateDoc(doc(chatRef, 'messages', m.id), { [`reactions.${me.uid}`]: cur === e ? deleteField() : e }).catch(() => {});
+  };
+  const forwardMsg = (m) => {
+    const keep = ['type', 'text', 'image', 'audio', 'duration', 'file', 'fileName', 'fileSize', 'mime', 'gif', 'lat', 'lng'];
+    const payload = {};
+    keep.forEach((k) => {
+      if (m[k] !== undefined) payload[k] = m[k];
+    });
+    onForward(payload);
+  };
+
   const onType = (v) => {
     setText(v);
     if (Date.now() - lastTyping.current > 2500) {
@@ -269,6 +305,7 @@ export default function ChatWindow({
       image: '',
       audio: '',
       file: '',
+      gif: '',
     }).catch(() => flash(t('sendFail')));
   };
 
@@ -337,6 +374,8 @@ export default function ChatWindow({
   );
 
   const title = group ? group.name : peer.name;
+  const sq = (search || '').trim().toLowerCase();
+  const shown = sq ? messages.filter((m) => (m.text || m.fileName || '').toLowerCase().includes(sq)) : messages;
 
   return (
     <section className="chat">
@@ -403,6 +442,9 @@ export default function ChatWindow({
               <div className="menu-back" onClick={() => setHmenu(false)} />
               <div className="menu">
                 {[
+                  ['search', t('searchChat'), () => setSearch('')],
+                  ...(group ? [['group', t('groupInfo'), () => setShowInfo(true)]] : []),
+                  ['pinloc', t('location'), sendLocation],
                   ['lock', locked ? t('unlockChat') : t('lockChat'), onToggleLock],
                   ['pin', pref.pin ? t('unpinChat') : t('pinChat'), () => onPref({ pin: !pref.pin })],
                   ['star', pref.fav ? t('removeFav') : t('addFav'), () => onPref({ fav: !pref.fav })],
@@ -429,9 +471,19 @@ export default function ChatWindow({
         </div>
       </header>
 
+      {search !== null && (
+        <div className="chat-search">
+          <input autoFocus placeholder={t('searchChat')} value={search} dir="auto" onChange={(e) => setSearch(e.target.value)} />
+          <button className="icon-btn" onClick={() => setSearch(null)}>
+            <Icon n="close" size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="messages">
         {messages.length === 0 && <div className="empty">{t('noMsgs')}</div>}
-        {messages.map((m) => (
+        {shown.length === 0 && messages.length > 0 && <div className="empty">{t('noMatch')}</div>}
+        {shown.map((m) => (
           <Message
             key={m.id}
             m={m}
@@ -446,6 +498,8 @@ export default function ChatWindow({
             onReply={startReply}
             onDelete={deleteMsg}
             onImage={setViewImg}
+            onReact={reactMsg}
+            onForward={forwardMsg}
           />
         ))}
         <div ref={bottomRef} />
@@ -467,15 +521,7 @@ export default function ChatWindow({
         </div>
       )}
 
-      {showEmoji && (
-        <div className="emoji-panel">
-          {EMOJIS.map((em) => (
-            <button key={em} type="button" onClick={() => setText((v) => v + em)}>
-              {em}
-            </button>
-          ))}
-        </div>
-      )}
+      {showEmoji && <MediaPanel onEmoji={(e) => setText((v) => v + e)} onGif={sendGif} onSticker={sendSticker} />}
 
       {recording ? (
         <div className="composer recording">
@@ -523,6 +569,10 @@ export default function ChatWindow({
             </button>
           )}
         </form>
+      )}
+
+      {showInfo && group && (
+        <GroupInfo me={me} group={group} users={allUsers} usersMap={usersMap} onClose={() => setShowInfo(false)} onLeft={() => { setShowInfo(false); onBack(); }} />
       )}
 
       {viewImg && (

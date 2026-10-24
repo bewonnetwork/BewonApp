@@ -31,3 +31,18 @@ export async function notify(title, body, channel = 'msgs') {
     /* ignore */
   }
 }
+
+// Meeting reminder: nirdishto somoy-er age phone-e notification
+export async function scheduleAt(title, body, atMs) {
+  if (!IS_NATIVE || atMs <= Date.now()) return;
+  try {
+    const LN = await plugin();
+    await LN.schedule({
+      notifications: [
+        { id: Math.floor(Math.random() * 2147483000), title, body, channelId: 'calls', schedule: { at: new Date(atMs), allowWhileIdle: true } },
+      ],
+    });
+  } catch (e) {
+    /* ignore */
+  }
+}

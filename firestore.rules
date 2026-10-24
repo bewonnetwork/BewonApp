@@ -41,7 +41,10 @@ service cloud.firestore {
         allow read: if isChatMember(chatId);
         allow create: if isChatMember(chatId) && request.auth.uid == request.resource.data.from;
         // Nijer message delete (deleted: true) korte pare
-        allow update: if signedIn() && request.auth.uid == resource.data.from;
+        allow update: if signedIn() && (
+          request.auth.uid == resource.data.from
+          || (isChatMember(chatId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+        );
       }
 
       // Group call
@@ -88,7 +91,7 @@ service cloud.firestore {
     match /meetings/{code} {
       allow get: if signedIn();
       allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow read, update: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow read, update, delete: if signedIn() && resource.data.createdBy == request.auth.uid;
 
       match /chat/{id} {
         allow read, create: if signedIn();

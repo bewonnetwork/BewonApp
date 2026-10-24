@@ -7,6 +7,9 @@ import { startRing, stopRing } from '../sound.js';
 import { fmtDur } from '../utils.js';
 import { screenShareSupported } from '../media.js';
 import { WEB_URL } from '../config.js';
+import { hasAudioRoute, resetAudio, setSpeaker } from '../audioRoute.js';
+import { startRecorder } from '../recorder.js';
+import { sendDirectText } from '../chatSend.js';
 
 // Remote awaj ekta alada <audio> element-e baje (video element-er upor nirbhor kore na)
 function RemoteAudio({ stream }) {
@@ -25,6 +28,39 @@ function RemoteAudio({ stream }) {
     };
   }, [stream]);
   return <audio ref={ref} autoPlay playsInline />;
+}
+
+
+function useAudioAndRec(rootRef, streamsFn) {
+  const [speaker, setSpk] = useState(true);
+  const [rec, setRec] = useState(false);
+  const stopRef = useRef(null);
+  useEffect(() => {
+    setSpeaker(speaker);
+  }, [speaker]);
+  useEffect(
+    () => () => {
+      resetAudio();
+      if (stopRef.current) stopRef.current();
+    },
+    []
+  );
+  const toggleRec = () => {
+    if (rec) {
+      const st = stopRef.current;
+      stopRef.current = null;
+      setRec(false);
+      if (st) st();
+      return;
+    }
+    try {
+      stopRef.current = startRecorder(rootRef.current, streamsFn());
+      setRec(true);
+    } catch (e) {
+      /* ignore */
+    }
+  };
+  return { speaker, toggleSpeaker: () => setSpk((v) => !v), rec, toggleRec };
 }
 
 function StreamVideo({ stream, muted, className, onClick }) {
@@ -174,6 +210,8 @@ export function CallScreen({
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [swapped, setSwapped] = useState(false);
+  const rootRef = useRef(null);
+  const ar = useAudioAndRec(rootRef, () => [localStream, remoteStream]);
   const [secs, setSecs] = useState(0);
   const isVideo = active.type === 'video';
   const remoteVideo = useVideoActive(remoteStream, false, false);
@@ -188,7 +226,7 @@ export function CallScreen({
   }, [active.status]);
 
   return (
-    <div className="overlay in-call">
+    <div className="overlay in-call" ref={rootRef}>
       {/* Remote audio ekhane baje; chobi na thakle video lukano thake */}
       <RemoteAudio stream={remoteStream} />
       <StreamVideo
@@ -272,11 +310,19 @@ export function CallScreen({
                 onClick={live.toggleSpeak}
                 title={t('speakTr')}
               >
-                <Icon n="mic" size={20} />
+                <Icon n="volume" size={20} />
               </button>
             )}
           </>
         )}
+        {hasAudioRoute && (
+          <button className={`round sm ${ar.speaker ? 'active' : ''}`} onClick={ar.toggleSpeaker} title={t('speaker')}>
+            <Icon n="volume" size={20} />
+          </button>
+        )}
+        <button className={`round sm ${ar.rec ? 'active rec-on' : ''}`} onClick={ar.toggleRec} title={t('record2')}>
+          <Icon n="rec" size={20} />
+        </button>
         <button className="round sm red" onClick={onEnd} title={t('endCall')}>
           <Icon n="phone" size={22} />
         </button>
@@ -332,6 +378,7 @@ export function RoomScreen({
   onMuteAll,
   onLock,
   onEndAll,
+  users = [],
 }) {
   const { t } = useT();
   const [muted, setMuted] = useState(false);
@@ -341,6 +388,10 @@ export function RoomScreen({
   const [more, setMore] = useState(false);
   const [spot, setSpot] = useState(null);
   const [fit, setFit] = useState(false);
+  const [invite, setInvite] = useState(false);
+  const [sentTo, setSentTo] = useState({});
+  const rootRef = useRef(null);
+  const ar = useAudioAndRec(rootRef, () => [localStream, ...Object.values(streams)]);
   const [now, setNow] = useState(Date.now());
   const [start] = useState(Date.now());
   const isVideo = room.type === 'video';
@@ -368,13 +419,22 @@ export function RoomScreen({
       /* ignore */
     }
   };
+  const inviteUser = async (u) => {
+    setSentTo((m) => ({ ...m, [u.uid]: 'sending' }));
+    try {
+      await sendDirectText(me, u.uid, `${room.title}\n${t('meetingId')}: ${room.code || ''}\n${link}`);
+      setSentTo((m) => ({ ...m, [u.uid]: 'sent' }));
+    } catch (e) {
+      setSentTo((m) => ({ ...m, [u.uid]: '' }));
+    }
+  };
   const shareLink = () => {
     if (navigator.share) navigator.share({ title: room.title, url: link }).catch(() => {});
     else copyLink();
   };
 
   return (
-    <div className={`overlay room ${fit ? 'fit' : ''}`}>
+    <div className={`overlay room ${fit ? 'fit' : ''}`} ref={rootRef}>
       <div className="room-top">
         <div className="grow">
           <div className="name ellipsis" style={{ color: '#fff' }}>{room.title}</div>
@@ -382,6 +442,7 @@ export function RoomScreen({
             {fmtElapsed(now - start)} · {t('inCall', { n: Math.max(participants.length, total) })}
           </div>
         </div>
+        {ar.rec && <span className="rec-badge">● REC</span>}
         {room.code && (
           <button className="pill" onClick={shareLink}>
             {copied ? t('copied') : room.code}
@@ -456,6 +517,27 @@ export function RoomScreen({
         {panel === 'chat' && <RoomChat me={me} base={room.base} onClose={() => setPanel('')} />}
       </div>
 
+      {invite && (
+        <div className="modal-back" onClick={() => setInvite(false)}>
+          <div className="modal light" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('invitePeople')}</h2>
+            {!room.code && <div className="muted small">{t('inviteGroupNote')}</div>}
+            <div className="pick-list" style={{ color: '#111b21' }}>
+              {users.map((u) => (
+                <div key={u.uid} className="pick-row">
+                  <Avatar name={u.name} photo={u.photo} size={32} />
+                  <span className="grow">{u.name}</span>
+                  <button className="ghost" disabled={!room.code || !!sentTo[u.uid]} onClick={() => inviteUser(u)}>
+                    {sentTo[u.uid] === 'sent' ? t('sent') : t('invite')}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="ghost" onClick={() => setInvite(false)}>{t('close')}</button>
+          </div>
+        </div>
+      )}
+
       {more && (
         <div className="room-more">
           <button onClick={() => { setMore(false); onState({ hand: !myHand }); }}>
@@ -471,6 +553,17 @@ export function RoomScreen({
               <Icon n="copy" size={18} /> {t('copyLink')}
             </button>
           )}
+          <button onClick={() => { setMore(false); ar.toggleRec(); }}>
+            <Icon n="rec" size={18} color={ar.rec ? '#ea4335' : undefined} /> {ar.rec ? t('stopRec') : t('record2')}
+          </button>
+          {hasAudioRoute && (
+            <button onClick={() => { setMore(false); ar.toggleSpeaker(); }}>
+              <Icon n="volume" size={18} /> {ar.speaker ? t('earpiece') : t('speaker')}
+            </button>
+          )}
+          <button onClick={() => { setMore(false); setInvite(true); }}>
+            <Icon n="people" size={18} /> {t('invitePeople')}
+          </button>
           <button onClick={() => { setMore(false); setFit((v) => !v); }}>
             <Icon n="video" size={18} /> {fit ? t('fillScreen') : t('fitScreen')}
           </button>

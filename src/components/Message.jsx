@@ -17,6 +17,8 @@ export default function Message({
   onImage,
   onReply,
   onStar,
+  onReact,
+  onForward,
 }) {
   const { t, lang } = useT();
   const [menu, setMenu] = useState(false);
@@ -65,6 +67,26 @@ export default function Message({
     body = <span className="deleted">{t('deleted')}</span>;
   } else if (m.type === 'image') {
     body = <img className="msg-img" src={m.image} alt="" onClick={(e) => { e.stopPropagation(); onImage(m.image); }} />;
+  } else if (m.type === 'gif') {
+    body = <img className="msg-gif" src={m.gif} alt="GIF" onClick={(e) => { e.stopPropagation(); onImage(m.gif); }} />;
+  } else if (m.type === 'sticker') {
+    body = <span className="sticker-msg">{m.text}</span>;
+  } else if (m.type === 'location') {
+    body = (
+      <a
+        className="loc-card"
+        href={`https://www.google.com/maps?q=${m.lat},${m.lng}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="file-ico"><Icon n="pinloc" size={22} /></span>
+        <span className="grow left">
+          <b>{t('locMsg')}</b>
+          <span className="muted small" style={{ display: 'block' }}>{Number(m.lat).toFixed(4)}, {Number(m.lng).toFixed(4)}</span>
+        </span>
+      </a>
+    );
   } else if (m.type === 'file') {
     body = (
       <button
@@ -134,8 +156,21 @@ export default function Message({
           )}
         </div>
       </div>
+      {m.reactions && Object.keys(m.reactions).length > 0 && (
+        <div className="reacts">
+          {Array.from(new Set(Object.values(m.reactions))).join('')} {Object.keys(m.reactions).length > 1 ? Object.keys(m.reactions).length : ''}
+        </div>
+      )}
       {menu && !m.deleted && (
         <div className="msg-actions">
+          <div className="react-pick">
+            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((e) => (
+              <button key={e} type="button" onClick={() => { setMenu(false); onReact(m, e); }}>{e}</button>
+            ))}
+          </div>
+          <button type="button" onClick={() => { setMenu(false); onForward(m); }}>
+            <Icon n="forward" size={17} /> {t('forward')}
+          </button>
           <button
             type="button"
             onClick={() => {

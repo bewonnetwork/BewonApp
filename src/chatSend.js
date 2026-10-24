@@ -29,3 +29,36 @@ export async function sendDirectText(me, peerUid, body) {
     { merge: true }
   );
 }
+
+// Je kono type-er message (forward-er jonno): chatId + member list diye
+export async function sendPayload(me, chatId, memberIds, isGroup, payload) {
+  const chatRef = doc(db, 'chats', chatId);
+  if (!isGroup) await setDoc(chatRef, { members: memberIds, isGroup: false }, { merge: true });
+  await addDoc(collection(chatRef, 'messages'), {
+    from: me.uid,
+    fromName: me.name,
+    lang: me.lang,
+    createdAt: serverTimestamp(),
+    forwarded: true,
+    ...payload,
+  });
+  const unread = {};
+  memberIds.filter((u) => u !== me.uid).forEach((u) => {
+    unread[u] = increment(1);
+  });
+  const preview = payload.type === 'text' ? (payload.text || '').slice(0, 120) : payload.fileName || '';
+  await setDoc(
+    chatRef,
+    {
+      lastMessage: preview,
+      lastType: payload.type,
+      lastLang: me.lang,
+      lastFrom: me.uid,
+      updatedAt: serverTimestamp(),
+      unread,
+      typing: { [me.uid]: 0 },
+      lastRead: { [me.uid]: serverTimestamp() },
+    },
+    { merge: true }
+  );
+}

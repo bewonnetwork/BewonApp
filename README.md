@@ -25,6 +25,8 @@ https://bewonapp-bf500.web.app
 - Settings: online/last-seen hide, profile photo auto-save, App lock (PIN + fingerprint + authenticator code), UI 50 language-e auto translate (device-e cache)
 - Meeting: spotlight, reaction, lock, fit/fill screen. Call-e nijer bhasha-y shona (APK-te native speech, PC-te Chrome)
 - News: 150+ portal
+- Meeting: schedule (date/time), custom meeting ID, invite people, record, .ics calendar, reminder. Call: speaker toggle, record
+- Chat: GIF, sticker, big emoji panel, reaction, forward, search in chat, group info (add/remove/leave), location share
 - Chat list filter (All / Unread / Groups), Menu (New group, Starred, Mark all read, Settings)
 
 ## File guide (ki file ki kaj kore)

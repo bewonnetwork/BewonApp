@@ -106,6 +106,9 @@ export default function Sidebar({
     let body = chat.lastMessage;
     if (chat.lastType === 'image') body = t('photo');
     else if (chat.lastType === 'audio') body = t('voiceMsg');
+    else if (chat.lastType === 'gif') body = t('gifMsg');
+    else if (chat.lastType === 'sticker') body = `${t('stickerMsg')} ${chat.lastMessage || ''}`;
+    else if (chat.lastType === 'location') body = t('locMsg');
     else if (chat.lastType === 'file') body = `${t('fileMsg')}: ${chat.lastMessage || ''}`;
     if (!body) return t('sayHi');
     return chat.lastFrom === me.uid ? `${t('you')}: ${body}` : body;

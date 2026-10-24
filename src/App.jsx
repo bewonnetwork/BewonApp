@@ -23,6 +23,7 @@ import PinModal from './components/PinModal.jsx';
 import { useLock } from './lock.js';
 import { usePrefs } from './prefs.js';
 import Crypto from './components/Crypto.jsx';
+import ForwardPicker from './components/ForwardPicker.jsx';
 import AppLock from './components/AppLock.jsx';
 import { loadSec } from './security.js';
 import { APK_URL, IS_NATIVE, WEB_URL } from './config.js';
@@ -72,6 +73,7 @@ export default function App() {
   const prefsRef = useRef({});
   prefsRef.current = prefs;
   const [showCrypto, setShowCrypto] = useState(false);
+  const [fwd, setFwd] = useState(null);
   useEffect(() => {
     initNotify();
   }, []);
@@ -514,6 +516,8 @@ export default function App() {
             onJoinRoom={joinGroupCall}
             pref={prefs[chatProps.chatId] || {}}
             onPref={(patch) => setPref(chatProps.chatId, patch)}
+            onForward={setFwd}
+            allUsers={users.filter((u) => u.uid !== me.uid)}
             locked={lock.ids.has(chatProps.chatId)}
             onToggleLock={() => {
               const id = chatProps.chatId;
@@ -563,6 +567,15 @@ export default function App() {
           />
         )}
         {showCrypto && <Crypto onClose={() => setShowCrypto(false)} />}
+        {fwd && (
+          <ForwardPicker
+            me={me}
+            users={users.filter((u) => u.uid !== me.uid)}
+            groups={chats.filter((c) => c.isGroup)}
+            payload={fwd}
+            onClose={() => setFwd(null)}
+          />
+        )}
         {showBroadcast && (
           <Broadcast me={me} users={users.filter((u) => u.uid !== me.uid)} onClose={() => setShowBroadcast(false)} />
         )}
@@ -685,6 +698,7 @@ export default function App() {
             onState={room.setMyState}
             onMuteAll={room.muteAll}
             onLock={room.lockMeeting}
+            users={users.filter((u) => u.uid !== me.uid)}
             onEndAll={room.endForAll}
             usersMap={usersMap}
             sharing={room.sharing}
