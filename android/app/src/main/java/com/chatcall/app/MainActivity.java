@@ -9,5 +9,6 @@ public class MainActivity extends BridgeActivity {
     super.onCreate(savedInstanceState);
     // Phone-er system font boro thakleo app-er lekha WhatsApp-er moto ek size-e thakbe
     getBridge().getWebView().getSettings().setTextZoom(100);
+    getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
   }
 }

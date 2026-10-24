@@ -21,6 +21,8 @@ import Starred from './components/Starred.jsx';
 import Broadcast from './components/Broadcast.jsx';
 import PinModal from './components/PinModal.jsx';
 import { useLock } from './lock.js';
+import { usePrefs } from './prefs.js';
+import Crypto from './components/Crypto.jsx';
 import { APK_URL, IS_NATIVE, WEB_URL } from './config.js';
 import { CallScreen, IncomingCall, IncomingRoomCall, RoomScreen } from './components/CallScreen.jsx';
 import { useCall } from './useCall.js';
@@ -63,6 +65,10 @@ export default function App() {
   const [pin, setPin] = useState(null); // { mode, then }
   const [lockedView, setLockedView] = useState(false);
   const lock = useLock(user ? user.uid : 'anon');
+  const { prefs, setPref } = usePrefs(user ? user.uid : null);
+  const prefsRef = useRef({});
+  prefsRef.current = prefs;
+  const [showCrypto, setShowCrypto] = useState(false);
   useEffect(() => {
     const h = () => document.visibilityState === 'hidden' && setLockedView(false);
     document.addEventListener('visibilitychange', h);
@@ -217,7 +223,7 @@ export default function App() {
           list.forEach((c) => {
             const was = prev[c.id] || 0;
             const isOpen = s && s.chatId === c.id && document.visibilityState === 'visible';
-            if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !isOpen && soundRef.current) ding();
+            if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !isOpen && soundRef.current && !((prefsRef.current[c.id] || {}).mute > Date.now())) ding();
           });
         }
         seenChats.current = nowMap;
@@ -435,6 +441,8 @@ export default function App() {
           onReadAll={readAll}
           onJoinMeeting={joinMeeting}
           onBroadcast={() => setShowBroadcast(true)}
+          onCrypto={() => setShowCrypto(true)}
+          prefs={prefs}
           onLinked={() => setShowLinked(true)}
           lockedIds={lock.ids}
           lockedView={lockedView}
@@ -458,6 +466,8 @@ export default function App() {
             callBusy={busy}
             onGroupCall={startGroupCall}
             onJoinRoom={joinGroupCall}
+            pref={prefs[chatProps.chatId] || {}}
+            onPref={(patch) => setPref(chatProps.chatId, patch)}
             locked={lock.ids.has(chatProps.chatId)}
             onToggleLock={() => {
               const id = chatProps.chatId;
@@ -506,6 +516,7 @@ export default function App() {
             }}
           />
         )}
+        {showCrypto && <Crypto onClose={() => setShowCrypto(false)} />}
         {showBroadcast && (
           <Broadcast me={me} users={users.filter((u) => u.uid !== me.uid)} onClose={() => setShowBroadcast(false)} />
         )}
@@ -599,6 +610,7 @@ export default function App() {
             active={call.active}
             localStream={call.localStream}
             remoteStream={call.remoteStream}
+            netState={call.netState}
             onEnd={call.endCall}
             onToggleMic={call.toggleMic}
             onToggleCam={call.toggleCam}

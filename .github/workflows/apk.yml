@@ -18,6 +18,10 @@ jobs:
       VITE_FIREBASE_STORAGE_BUCKET: bewonapp-bf500.firebasestorage.app
       VITE_FIREBASE_MESSAGING_SENDER_ID: "396096261224"
       VITE_FIREBASE_APP_ID: 1:396096261224:web:8c03a05404f933b6a23fdd
+      # Optional: nijer TURN server (GitHub > Settings > Secrets and variables > Actions)
+      VITE_TURN_URL: ${{ secrets.TURN_URL }}
+      VITE_TURN_USER: ${{ secrets.TURN_USER }}
+      VITE_TURN_PASS: ${{ secrets.TURN_PASS }}
     steps:
       - uses: actions/checkout@v4
 

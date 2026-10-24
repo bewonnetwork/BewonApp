@@ -10,6 +10,7 @@ const own = import.meta.env.VITE_TURN_URL
   : [];
 
 export const ICE_CONFIG = {
+  iceCandidatePoolSize: 4,
   iceServers: [
     ...own,
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },

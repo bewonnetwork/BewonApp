@@ -24,6 +24,7 @@ const RING_TIMEOUT_MS = 45000;
 export function useCall(me, t) {
   const [incoming, setIncoming] = useState(null);
   const [active, setActive] = useState(null);
+  const [netState, setNetState] = useState('');
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [error, setError] = useState(null);
@@ -64,6 +65,7 @@ export function useCall(me, t) {
     setLocalStream(null);
     setRemoteStream(null);
     setActive(null);
+    setNetState('');
   }, []);
 
   // Incoming call listener
@@ -125,6 +127,7 @@ export function useCall(me, t) {
     stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
     const remote = new MediaStream();
     setRemoteStream(remote);
+    pc.oniceconnectionstatechange = () => setNetState(pc.iceConnectionState);
     pc.ontrack = (e) => {
       e.streams[0].getTracks().forEach((tr) => remote.addTrack(tr));
       setRemoteStream(new MediaStream(remote.getTracks()));
@@ -333,6 +336,7 @@ export function useCall(me, t) {
     active,
     localStream,
     remoteStream,
+    netState,
     error,
     clearError: () => setError(null),
     startCall,

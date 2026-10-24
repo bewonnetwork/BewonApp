@@ -6,6 +6,25 @@ import { fmtDur } from '../utils.js';
 import { screenShareSupported } from '../media.js';
 import { WEB_URL } from '../config.js';
 
+// Remote awaj ekta alada <audio> element-e baje (video element-er upor nirbhor kore na)
+function RemoteAudio({ stream }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const a = ref.current;
+    if (!a) return undefined;
+    a.srcObject = stream || null;
+    const tryPlay = () => a.play && a.play().catch(() => {});
+    tryPlay();
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('touchend', tryPlay);
+    return () => {
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('touchend', tryPlay);
+    };
+  }, [stream]);
+  return <audio ref={ref} autoPlay playsInline />;
+}
+
 function StreamVideo({ stream, muted, className }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -140,6 +159,7 @@ export function CallScreen({
   active,
   localStream,
   remoteStream,
+  netState,
   onEnd,
   onToggleMic,
   onToggleCam,
@@ -167,8 +187,10 @@ export function CallScreen({
   return (
     <div className="overlay in-call">
       {/* Remote audio ekhane baje; chobi na thakle video lukano thake */}
+      <RemoteAudio stream={remoteStream} />
       <StreamVideo
         stream={remoteStream}
+        muted
         className={isVideo && remoteVideo ? 'remote-video' : 'hidden-media'}
       />
 
@@ -181,6 +203,12 @@ export function CallScreen({
       <div className="call-top">
         <h2>{active.peerName}</h2>
         <p>{active.status === 'calling' ? t('calling') : fmtDur(secs)}</p>
+        {active.status !== 'calling' && (netState === 'failed' || netState === 'disconnected') && (
+          <p className="bad">{t('callNet')}</p>
+        )}
+        {active.status !== 'calling' && (netState === 'new' || netState === 'checking') && (
+          <p className="muted">{t('callConnecting')}</p>
+        )}
       </div>
 
       {isVideo && <StreamVideo stream={localStream} muted className="local-video" />}

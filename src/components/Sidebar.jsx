@@ -51,6 +51,8 @@ export default function Sidebar({
   onReadAll,
   onJoinMeeting,
   onBroadcast,
+  onCrypto,
+  prefs = {},
   onLinked,
   lockedIds,
   lockedView,
@@ -62,6 +64,7 @@ export default function Sidebar({
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [menu, setMenu] = useState(false);
+  const [showArch, setShowArch] = useState(false);
 
   const items = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -79,19 +82,24 @@ export default function Sidebar({
       .map((c) => ({ key: c.id, kind: 'group', name: c.name || '', chat: c }));
     return [...directs, ...groups]
       .filter((i) => (lockedView ? lockedIds.has(i.key) : !lockedIds.has(i.key)))
+      .filter((i) => !!(prefs[i.key] || {}).arch === showArch)
       .filter((i) => !s || i.name.toLowerCase().includes(s) || (i.user && (i.user.email || '').includes(s)))
       .filter((i) => {
         if (filter === 'unread') return ((i.chat && i.chat.unread && i.chat.unread[me.uid]) || 0) > 0;
         if (filter === 'groups') return i.kind === 'group';
+        if (filter === 'fav') return !!(prefs[i.key] || {}).fav;
         return true;
       })
       .sort((a, b) => {
+        const pa = (prefs[a.key] || {}).pin ? 1 : 0;
+        const pb = (prefs[b.key] || {}).pin ? 1 : 0;
+        if (pa !== pb) return pb - pa;
         const ta = tsMs(a.chat && a.chat.updatedAt);
         const tb = tsMs(b.chat && b.chat.updatedAt);
         if (ta !== tb) return tb - ta;
         return a.name.localeCompare(b.name);
       });
-  }, [users, chats, chatsById, search, filter, me.uid, lockedIds, lockedView]);
+  }, [users, chats, chatsById, search, filter, me.uid, lockedIds, lockedView, prefs, showArch]);
 
   const previewOf = (chat) => {
     if (!chat || (!chat.lastMessage && !chat.lastType)) return t('sayHi');
@@ -103,6 +111,7 @@ export default function Sidebar({
     return chat.lastFrom === me.uid ? `${t('you')}: ${body}` : body;
   };
 
+  const archCount = Object.values(prefs).filter((p) => p && p.arch).length;
   const totalUnread = chats.reduce((n, c) => n + ((c.unread && c.unread[me.uid]) || 0), 0);
 
   const TABS = [
@@ -116,7 +125,8 @@ export default function Sidebar({
   const MENU = [
     ['group', t('newGroup'), onNewGroup],
     ['broadcast', t('broadcastLists'), onBroadcast],
-    ['swap', t('linkedDevices'), onLinked],
+    ['swap', t('crypto'), onCrypto],
+    ['globe', t('linkedDevices'), onLinked],
     ['star', t('starred'), onStarred],
     ['checks', t('readAll'), onReadAll],
     ['gear', t('settings'), onSettings],
@@ -171,6 +181,7 @@ export default function Sidebar({
             {[
               ['all', t('filterAll')],
               ['unread', `${t('filterUnread')}${totalUnread ? ` ${totalUnread}` : ''}`],
+              ['fav', t('favourites')],
               ['groups', t('filterGroups')],
             ].map(([k, label]) => (
               <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
@@ -198,6 +209,19 @@ export default function Sidebar({
                 </button>
               )
             )}
+            {!lockedView && !showArch && archCount > 0 && (
+              <button className="status-row" onClick={() => setShowArch(true)}>
+                <span className="comm-ico"><Icon n="archive" size={20} /></span>
+                <div className="grow left"><div className="name">{t('archived')}</div></div>
+                <span className="muted small">{archCount}</span>
+              </button>
+            )}
+            {showArch && (
+              <button className="status-row" onClick={() => setShowArch(false)}>
+                <Icon n="back" />
+                <b>{t('archived')}</b>
+              </button>
+            )}
             {lockedView && items.length === 0 && <div className="empty">{t('noLocked')}</div>}
             {loadError && <div className="empty">{t('loadFail', { code: loadError })}</div>}
             {!loadError && !lockedView && items.length === 0 && (
@@ -217,6 +241,10 @@ export default function Sidebar({
                     <div className="grow left">
                       <div className="row-top">
                         <span className="name ellipsis">{i.name}</span>
+                        <span className="row-flags">
+                          {(prefs[i.key] || {}).mute > Date.now() && <Icon n="mute" size={13} />}
+                          {(prefs[i.key] || {}).pin && <Icon n="pin" size={13} />}
+                        </span>
                         <span className={`small ${unread ? 'unread-time' : 'muted'}`}>
                           {fmtDayOrTime(tsMs(i.chat && i.chat.updatedAt))}
                         </span>

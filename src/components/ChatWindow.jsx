@@ -45,6 +45,8 @@ export default function ChatWindow({
   onJoinRoom,
   locked,
   onToggleLock,
+  pref = {},
+  onPref = () => {},
 }) {
   const { t } = useT();
   const [messages, setMessages] = useState([]);
@@ -56,6 +58,7 @@ export default function ChatWindow({
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
+  const [hmenu, setHmenu] = useState(false);
 
   const bottomRef = useRef(null);
   const lastTyping = useRef(0);
@@ -398,6 +401,38 @@ export default function ChatWindow({
         >
           <Icon n="lock" size={19} />
         </button>
+        <div className="menu-wrap">
+          <button className="icon-btn" onClick={() => setHmenu((v) => !v)}>
+            <Icon n="more" />
+          </button>
+          {hmenu && (
+            <>
+              <div className="menu-back" onClick={() => setHmenu(false)} />
+              <div className="menu">
+                {[
+                  ['pin', pref.pin ? t('unpinChat') : t('pinChat'), { pin: !pref.pin }],
+                  ['star', pref.fav ? t('removeFav') : t('addFav'), { fav: !pref.fav }],
+                  ['archive', pref.arch ? t('unarchiveChat') : t('archiveChat'), { arch: !pref.arch }],
+                  [
+                    'mute',
+                    pref.mute > Date.now() ? t('unmuteChat') : t('muteChat'),
+                    { mute: pref.mute > Date.now() ? 0 : Date.now() + 8 * 3600 * 1000 },
+                  ],
+                ].map(([ic, label, patch]) => (
+                  <button
+                    key={ic}
+                    onClick={() => {
+                      setHmenu(false);
+                      onPref(patch);
+                    }}
+                  >
+                    <Icon n={ic} size={18} /> {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       <div className="messages">
