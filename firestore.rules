@@ -48,6 +48,10 @@ service cloud.firestore {
       match /gcalls/{callId} {
         allow read, write: if isChatMember(chatId);
 
+        match /chat/{id} {
+          allow read, create: if isChatMember(chatId);
+        }
+
         match /participants/{uid} {
           allow read: if isChatMember(chatId);
           allow write: if isChatMember(chatId) && request.auth.uid == uid;
@@ -84,6 +88,11 @@ service cloud.firestore {
     match /meetings/{code} {
       allow get: if signedIn();
       allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow read, update: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      match /chat/{id} {
+        allow read, create: if signedIn();
+      }
 
       match /participants/{uid} {
         allow read: if signedIn();

@@ -6,6 +6,7 @@ import { LANGS, useT } from '../i18n.js';
 import { compressImage } from '../utils.js';
 import { APK_URL, IS_NATIVE } from '../config.js';
 import Avatar from './Avatar.jsx';
+import SecuritySettings from './SecuritySettings.jsx';
 
 export default function Settings({ me, soundOn, onSound, onClose }) {
   const { t } = useT();
@@ -14,6 +15,8 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
   const [lang, setLang] = useState(me.lang || 'en');
   const [auto, setAuto] = useState(me.autoTranslate !== false);
   const [photo, setPhoto] = useState(me.photo || '');
+  const [hide, setHide] = useState(!!me.hideOnline);
+  const [perr, setPerr] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef(null);
@@ -22,10 +25,13 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
     const f = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!f) return;
+    setPerr('');
     try {
-      setPhoto(await compressImage(f, 256, 0.75));
+      const img = await compressImage(f, 256, 0.75);
+      setPhoto(img);
+      await updateDoc(doc(db, 'users', me.uid), { photo: img });
     } catch (err) {
-      /* ignore */
+      setPerr(t('imgFail'));
     }
   };
 
@@ -39,6 +45,8 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
         lang,
         autoTranslate: auto,
         photo,
+        hideOnline: hide,
+        ...(hide ? { lastSeenMs: 0 } : {}),
       });
       try {
         localStorage.setItem('cc_lang', lang);
@@ -61,10 +69,11 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
         <div className="photo-row">
           <Avatar name={name} photo={photo} size={72} />
           <button className="ghost" onClick={() => fileRef.current && fileRef.current.click()}>
-            📷 {t('photoChange')}
+            {t('photoChange')}
           </button>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickPhoto} />
         </div>
+        {perr && <div className="error">{perr}</div>}
 
         <label className="field-label">{t('yourName')}</label>
         <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -72,7 +81,7 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
         <label className="field-label">{t('about')}</label>
         <input value={about} placeholder={t('aboutPh')} onChange={(e) => setAbout(e.target.value)} />
 
-        <label className="field-label">🌐 {t('language')}</label>
+        <label className="field-label">{t('language')}</label>
         <select value={lang} onChange={(e) => setLang(e.target.value)}>
           {LANGS.map((l) => (
             <option key={l.code} value={l.code}>
@@ -90,9 +99,19 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
         </label>
 
         <label className="check">
+          <input type="checkbox" checked={hide} onChange={(e) => setHide(e.target.checked)} />
+          <span>
+            {t('hideOnline')}
+            <small>{t('hideOnlineHint')}</small>
+          </span>
+        </label>
+
+        <label className="check">
           <input type="checkbox" checked={soundOn} onChange={(e) => onSound(e.target.checked)} />
           <span>{t('sound')}</span>
         </label>
+
+        <SecuritySettings uid={me.uid} email={me.email} />
 
         <div className="modal-actions">
           <button className="primary" disabled={busy} onClick={save}>
@@ -111,7 +130,7 @@ export default function Settings({ me, soundOn, onSound, onClose }) {
 
         )}
         <button className="link danger" onClick={() => signOut(auth)}>
-          ⎋ {t('logout')}
+          {t('logout')}
         </button>
       </div>
     </div>

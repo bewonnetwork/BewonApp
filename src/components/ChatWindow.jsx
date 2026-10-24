@@ -353,19 +353,19 @@ export default function ChatWindow({
           <>
             <button
               className="icon-btn"
-              title={t('voiceCall')}
-              disabled={callBusy}
-              onClick={() => onCall(peer, 'audio')}
-            >
-              <Icon n="phone" size={20} />
-            </button>
-            <button
-              className="icon-btn"
               title={t('videoCall')}
               disabled={callBusy}
               onClick={() => onCall(peer, 'video')}
             >
               <Icon n="video" size={21} />
+            </button>
+            <button
+              className="icon-btn"
+              title={t('voiceCall')}
+              disabled={callBusy}
+              onClick={() => onCall(peer, 'audio')}
+            >
+              <Icon n="phone" size={20} />
             </button>
           </>
         )}
@@ -380,27 +380,20 @@ export default function ChatWindow({
               className="icon-btn"
               title={t('groupCall')}
               disabled={callBusy}
-              onClick={() => onGroupCall(chat, 'audio')}
+              onClick={() => onGroupCall(chat, 'video')}
             >
-              <Icon n="phone" size={20} />
+              <Icon n="video" size={21} />
             </button>
             <button
               className="icon-btn"
               title={t('groupCall')}
               disabled={callBusy}
-              onClick={() => onGroupCall(chat, 'video')}
+              onClick={() => onGroupCall(chat, 'audio')}
             >
-              <Icon n="video" size={21} />
+              <Icon n="phone" size={20} />
             </button>
           </>
         )}
-        <button
-          className={`icon-btn ${locked ? 'on' : ''}`}
-          title={locked ? t('unlockChat') : t('lockChat')}
-          onClick={onToggleLock}
-        >
-          <Icon n="lock" size={19} />
-        </button>
         <div className="menu-wrap">
           <button className="icon-btn" onClick={() => setHmenu((v) => !v)}>
             <Icon n="more" />
@@ -410,20 +403,21 @@ export default function ChatWindow({
               <div className="menu-back" onClick={() => setHmenu(false)} />
               <div className="menu">
                 {[
-                  ['pin', pref.pin ? t('unpinChat') : t('pinChat'), { pin: !pref.pin }],
-                  ['star', pref.fav ? t('removeFav') : t('addFav'), { fav: !pref.fav }],
-                  ['archive', pref.arch ? t('unarchiveChat') : t('archiveChat'), { arch: !pref.arch }],
+                  ['lock', locked ? t('unlockChat') : t('lockChat'), onToggleLock],
+                  ['pin', pref.pin ? t('unpinChat') : t('pinChat'), () => onPref({ pin: !pref.pin })],
+                  ['star', pref.fav ? t('removeFav') : t('addFav'), () => onPref({ fav: !pref.fav })],
+                  ['archive', pref.arch ? t('unarchiveChat') : t('archiveChat'), () => onPref({ arch: !pref.arch })],
                   [
                     'mute',
                     pref.mute > Date.now() ? t('unmuteChat') : t('muteChat'),
-                    { mute: pref.mute > Date.now() ? 0 : Date.now() + 8 * 3600 * 1000 },
+                    () => onPref({ mute: pref.mute > Date.now() ? 0 : Date.now() + 8 * 3600 * 1000 }),
                   ],
-                ].map(([ic, label, patch]) => (
+                ].map(([ic, label, fn]) => (
                   <button
                     key={ic}
                     onClick={() => {
                       setHmenu(false);
-                      onPref(patch);
+                      fn();
                     }}
                   >
                     <Icon n={ic} size={18} /> {label}

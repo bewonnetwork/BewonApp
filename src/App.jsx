@@ -23,14 +23,17 @@ import PinModal from './components/PinModal.jsx';
 import { useLock } from './lock.js';
 import { usePrefs } from './prefs.js';
 import Crypto from './components/Crypto.jsx';
+import AppLock from './components/AppLock.jsx';
+import { loadSec } from './security.js';
 import { APK_URL, IS_NATIVE, WEB_URL } from './config.js';
 import { CallScreen, IncomingCall, IncomingRoomCall, RoomScreen } from './components/CallScreen.jsx';
 import { useCall } from './useCall.js';
 import { useRoom } from './useRoom.js';
 import { useLiveTranslate } from './useLiveTranslate.js';
-import { LangCtx, detectLang, makeT, sameLang } from './i18n.js';
+import { LangCtx, buildUiDict, detectLang, loadUiDict, makeT, sameLang } from './i18n.js';
 import { chatIdFor, tsMs } from './utils.js';
 import { ding } from './sound.js';
+import { initNotify, notify } from './notify.js';
 
 const readLS = (k) => {
   try {
@@ -70,6 +73,20 @@ export default function App() {
   prefsRef.current = prefs;
   const [showCrypto, setShowCrypto] = useState(false);
   useEffect(() => {
+    initNotify();
+  }, []);
+  const incomingId = useRef('');
+  const [unlocked, setUnlocked] = useState(false);
+  const hiddenAt = useRef(0);
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') hiddenAt.current = Date.now();
+      else if (hiddenAt.current && Date.now() - hiddenAt.current > 30000) setUnlocked(false);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+  useEffect(() => {
     const h = () => document.visibilityState === 'hidden' && setLockedView(false);
     document.addEventListener('visibilitychange', h);
     return () => document.removeEventListener('visibilitychange', h);
@@ -96,7 +113,16 @@ export default function App() {
   }, []);
 
   const lang = (profile && profile.lang) || prefLang;
-  const t = useMemo(() => makeT(lang), [lang]);
+  const [uiExtra, setUiExtra] = useState(() => loadUiDict(lang));
+  useEffect(() => {
+    setUiExtra(loadUiDict(lang));
+    let alive = true;
+    buildUiDict(lang, (d) => alive && setUiExtra(d));
+    return () => {
+      alive = false;
+    };
+  }, [lang]);
+  const t = useMemo(() => makeT(lang, uiExtra), [lang, uiExtra]);
   const langValue = useMemo(() => ({ lang, t }), [lang, t]);
 
   // Nijer profile
@@ -149,15 +175,18 @@ export default function App() {
       autoTranslate: profile ? profile.autoTranslate !== false : true,
       about: (profile && profile.about) || '',
       photo: (profile && profile.photo) || '',
+      hideOnline: !!(profile && profile.hideOnline),
     };
   }, [user, profile, lang]);
 
+  const hideRef = useRef(false);
+  hideRef.current = !!(profile && profile.hideOnline);
   // Online presence
   useEffect(() => {
     if (!user) return undefined;
     const ping = () => {
       if (document.visibilityState === 'visible') {
-        updateDoc(doc(db, 'users', user.uid), { lastSeenMs: Date.now() }).catch(() => {});
+        updateDoc(doc(db, 'users', user.uid), { lastSeenMs: hideRef.current ? 0 : Date.now() }).catch(() => {});
       }
     };
     ping();
@@ -224,6 +253,7 @@ export default function App() {
             const was = prev[c.id] || 0;
             const isOpen = s && s.chatId === c.id && document.visibilityState === 'visible';
             if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !isOpen && soundRef.current && !((prefsRef.current[c.id] || {}).mute > Date.now())) ding();
+            if (nowMap[c.id] > was && c.lastFrom && c.lastFrom !== user.uid && !((prefsRef.current[c.id] || {}).mute > Date.now())) notify(c.isGroup ? c.name : c.lastFromName || 'BewonChat', c.lastType === 'text' ? c.lastMessage : '📎', 'msgs');
           });
         }
         seenChats.current = nowMap;
@@ -251,14 +281,22 @@ export default function App() {
   const starredIds = useMemo(() => new Set(starredList.map((s) => s.id)), [starredList]);
 
   const call = useCall(me, t);
+  const inc = call.incoming;
+  useEffect(() => {
+    if (inc && incomingId.current !== inc.id) {
+      incomingId.current = inc.id;
+      notify(inc.callerName, inc.type === 'video' ? 'Video call' : 'Voice call', 'calls');
+    }
+  }, [inc]);
   const room = useRoom(me);
 
   // Call-e live translate: bhasha alada hole auto chalu
   const callId = call.active ? call.active.id : null;
   const peerLang = call.active && usersMap[call.active.peerId] ? usersMap[call.active.peerId].lang : null;
   useEffect(() => {
-    setLiveSpeak(false);
-    setLiveOn(!!(callId && me && peerLang && !sameLang(peerLang, me.lang)));
+    const diff = !!(callId && me && peerLang && !sameLang(peerLang, me.lang));
+    setLiveSpeak(diff);
+    setLiveOn(diff);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callId]);
   const live = useLiveTranslate({ callId, enabled: !!callId && liveOn, speak: liveSpeak, me: me || {} });
@@ -414,6 +452,14 @@ export default function App() {
             }
           }}
         />
+      </LangCtx.Provider>
+    );
+  }
+
+  if (loadSec(user.uid).pin && !unlocked) {
+    return (
+      <LangCtx.Provider value={langValue}>
+        <AppLock uid={user.uid} onOpen={() => setUnlocked(true)} />
       </LangCtx.Provider>
     );
   }
@@ -635,6 +681,11 @@ export default function App() {
             localStream={room.localStream}
             streams={room.streams}
             participants={room.participants}
+            meta={room.meta}
+            onState={room.setMyState}
+            onMuteAll={room.muteAll}
+            onLock={room.lockMeeting}
+            onEndAll={room.endForAll}
             usersMap={usersMap}
             sharing={room.sharing}
             onLeave={room.leave}

@@ -284,6 +284,31 @@ const en = {
   cryptoNote: 'View only. No private key is needed and nothing can be sent from here.',
   callNet: 'Network problem: voice cannot connect. Try both phones on the same Wi-Fi.',
   callConnecting: 'Connecting audio…',
+  meetChat: 'Meeting chat',
+  participants: 'Participants',
+  host: 'Host',
+  muteAll: 'Mute all',
+  endForAll: 'End meeting for all',
+  raiseHand: 'Raise hand',
+  lowerHand: 'Lower hand',
+  copyLink: 'Copy meeting link',
+  security: 'Security',
+  appLock: 'App lock',
+  appLockHint: 'Ask for a PIN every time the app opens. Fingerprint and authenticator code can be added.',
+  fingerprint: 'Fingerprint / face unlock',
+  authenticator: 'Authenticator app (2-step code)',
+  scanQr: 'Scan this QR in Google Authenticator or any authenticator app, then enter the 6-digit code.',
+  enterCode: 'Enter the 6-digit authenticator code',
+  codeWrong: 'Wrong code',
+  remove: 'Remove',
+  unlockApp: 'Unlock BewonChat',
+  hideOnline: 'Hide my online / last seen',
+  hideOnlineHint: 'Others will not see when you are online.',
+  fillScreen: 'Fill screen',
+  fitScreen: 'Fit whole video',
+  lockMeeting: 'Lock meeting',
+  unlockMeeting: 'Unlock meeting',
+  meetLocked: 'This meeting is locked by the host.',
 };
 
 const bn = {
@@ -491,14 +516,105 @@ const bn = {
   cryptoNote: 'শুধু দেখার জন্য। কোনো প্রাইভেট কী লাগে না, এখান থেকে কিছু পাঠানো যায় না।',
   callNet: 'নেটওয়ার্ক সমস্যা: ভয়েস কানেক্ট হচ্ছে না। দুই ফোন একই Wi-Fi তে রেখে দেখুন।',
   callConnecting: 'অডিও কানেক্ট হচ্ছে…',
+  meetChat: 'মিটিং চ্যাট',
+  participants: 'অংশগ্রহণকারী',
+  host: 'হোস্ট',
+  muteAll: 'সবাইকে মিউট',
+  endForAll: 'সবার জন্য মিটিং শেষ',
+  raiseHand: 'হাত তুলুন',
+  lowerHand: 'হাত নামান',
+  copyLink: 'মিটিং লিংক কপি',
+  security: 'নিরাপত্তা',
+  appLock: 'অ্যাপ লক',
+  appLockHint: 'অ্যাপ খুললেই পিন চাইবে। ফিঙ্গারপ্রিন্ট ও অথেনটিকেটর কোড যোগ করা যায়।',
+  fingerprint: 'ফিঙ্গারপ্রিন্ট / ফেস আনলক',
+  authenticator: 'অথেনটিকেটর অ্যাপ (২-ধাপ কোড)',
+  scanQr: 'Google Authenticator বা যেকোনো অথেনটিকেটর অ্যাপে এই QR স্ক্যান করে ৬ সংখ্যার কোড দিন।',
+  enterCode: 'অথেনটিকেটরের ৬ সংখ্যার কোড দিন',
+  codeWrong: 'ভুল কোড',
+  remove: 'সরান',
+  unlockApp: 'BewonChat আনলক করুন',
+  hideOnline: 'আমার অনলাইন / লাস্ট সিন লুকান',
+  hideOnlineHint: 'অন্যরা আপনার অনলাইন দেখবে না।',
+  fillScreen: 'পুরো স্ক্রিন ভরুন',
+  fitScreen: 'পুরো ভিডিও দেখান',
+  lockMeeting: 'মিটিং লক করুন',
+  unlockMeeting: 'মিটিং আনলক করুন',
+  meetLocked: 'হোস্ট এই মিটিং লক করেছেন।',
 };
 
 const STR = { en, bn };
 
-export const makeT = (lang) => {
+const UI_KEY = (lang) => `bc_ui_v2_${lang}`;
+
+export const loadUiDict = (lang) => {
+  try {
+    return JSON.parse(localStorage.getItem(UI_KEY(lang)) || '{}');
+  } catch (e) {
+    return {};
+  }
+};
+
+const hasNative = (lang) => !!STR[lang];
+
+// En/Bangla chhara onno language-er menu/button-er lekha Google diye auto translate hoye device-e cache hoy
+export async function buildUiDict(lang, onPart) {
+  if (hasNative(lang)) return {};
+  let dict = loadUiDict(lang);
+  const todo = Object.keys(STR.en).filter((k) => !dict[k]);
+  const tokens = (str) => {
+    const vars = [];
+    const out = str.replace(/\{(\w+)\}/g, (m, v) => {
+      vars.push(v);
+      return ` 9000${vars.length} `;
+    });
+    return { out, vars };
+  };
+  const restore = (txt, vars) => {
+    let r = txt;
+    for (let i = 0; i < vars.length; i += 1) {
+      const re = new RegExp(`\\s*9000${i + 1}\\s*`);
+      if (!re.test(r)) return null;
+      r = r.replace(re, `{${vars[i]}}`);
+    }
+    return r;
+  };
+  for (let i = 0; i < todo.length; i += 12) {
+    const keys = todo.slice(i, i + 12);
+    const prepared = keys.map((k) => tokens(STR.en[k]));
+    try {
+      const url =
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&dt=t' +
+        `&tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(prepared.map((p) => p.out).join('\n@@\n'))}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('x');
+      const j = await r.json();
+      const parts = j[0].map((x) => x[0]).join('').split(/\n?\s*@@\s*\n?/);
+      if (parts.length === keys.length) {
+        const add = {};
+        keys.forEach((k, idx) => {
+          const v = restore(parts[idx].trim(), prepared[idx].vars);
+          if (v) add[k] = v;
+        });
+        dict = { ...dict, ...add };
+        try {
+          localStorage.setItem(UI_KEY(lang), JSON.stringify(dict));
+        } catch (e) {
+          /* ignore */
+        }
+        if (onPart) onPart(dict);
+      }
+    } catch (e) {
+      break;
+    }
+  }
+  return dict;
+}
+
+export const makeT = (lang, extra) => {
   const dict = STR[lang] || STR.en;
   return (key, vars) => {
-    let s = dict[key] ?? STR.en[key] ?? key;
+    let s = dict[key] ?? (extra && extra[key]) ?? STR.en[key] ?? key;
     if (vars) {
       Object.keys(vars).forEach((k) => {
         s = s.split(`{${k}}`).join(vars[k]);

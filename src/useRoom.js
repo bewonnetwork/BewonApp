@@ -4,10 +4,12 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -30,12 +32,14 @@ export function useRoom(me) {
   const [participants, setParticipants] = useState([]);
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState(null);
+  const [meta, setMeta] = useState(null); // room doc (createdBy, muteAllMs, endedMs)
 
   const peers = useRef({});
   const localRef = useRef(null);
   const unsubs = useRef([]);
   const ctx = useRef(null); // { base, joinedMs, onEmpty, type }
   const ctrlRef = useRef(null);
+  const leaveRef = useRef(() => {});
 
   const closePeer = useCallback((uid) => {
     const p = peers.current[uid];
@@ -148,6 +152,7 @@ export function useRoom(me) {
     setStreams({});
     setParticipants([]);
     setSharing(false);
+    setMeta(null);
     setRoom(null);
   }, [closePeer]);
 
@@ -169,6 +174,18 @@ export function useRoom(me) {
     async ({ kind, base, title, type, code, onEmpty }) => {
       if (room || !me) return false;
       setError(null);
+      if (kind === 'meeting') {
+        try {
+          const m = await getDoc(doc(db, ...base));
+          const d = m.exists() ? m.data() : null;
+          if (d && d.locked && d.createdBy !== me.uid) {
+            setError({ key: 'meetLocked' });
+            return false;
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -228,10 +245,32 @@ export function useRoom(me) {
           },
           () => {}
         );
-        unsubs.current.push(unsubSig, unsubPart);
+        const joinedAt = Date.now();
+        const unsubMeta = onSnapshot(
+          doc(db, ...base),
+          (snap) => {
+            const d = snap.data() || null;
+            setMeta(d);
+            if (!d || !ctx.current) return;
+            if ((d.createdBy || d.startedBy) !== me.uid && d.muteAllMs > joinedAt && d.muteAllMs > (ctx.current.lastMute || 0)) {
+              ctx.current.lastMute = d.muteAllMs;
+              const tr = localRef.current && localRef.current.getAudioTracks()[0];
+              if (tr && tr.enabled) {
+                tr.enabled = false;
+                updateDoc(doc(db, ...base, 'participants', me.uid), { mic: false }).catch(() => {});
+              }
+            }
+            if (d.endedMs && d.endedMs > joinedAt) leaveRef.current();
+          },
+          () => {}
+        );
+        unsubs.current.push(unsubSig, unsubPart, unsubMeta);
         await setDoc(doc(db, ...base, 'participants', me.uid), {
           name: me.name,
-          joinedMs: Date.now(),
+          joinedMs: joinedAt,
+          mic: true,
+          cam: type === 'video',
+          hand: false,
         });
         return true;
       } catch (e) {
@@ -245,6 +284,8 @@ export function useRoom(me) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [room, me, teardown, closePeer]
   );
+
+  leaveRef.current = leave;
 
   // Tab bondho korle best-effort leave
   useEffect(() => {
@@ -264,16 +305,41 @@ export function useRoom(me) {
     [teardown]
   );
 
+  const setMyState = useCallback(
+    (patch) => {
+      const c = ctx.current;
+      if (c && me) updateDoc(doc(db, ...c.base, 'participants', me.uid), patch).catch(() => {});
+    },
+    [me]
+  );
+
   const toggleMic = useCallback(() => {
     const tr = localRef.current && localRef.current.getAudioTracks()[0];
     if (tr) tr.enabled = !tr.enabled;
+    setMyState({ mic: tr ? tr.enabled : false });
     return tr ? !tr.enabled : false;
-  }, []);
+  }, [setMyState]);
 
   const toggleCam = useCallback(() => {
     const tr = localRef.current && localRef.current.getVideoTracks()[0];
     if (tr) tr.enabled = !tr.enabled;
+    setMyState({ cam: tr ? tr.enabled : false });
     return tr ? !tr.enabled : false;
+  }, [setMyState]);
+
+  // Host: shobaike mute / meeting shobar jonno shesh
+  const muteAll = useCallback(() => {
+    const c = ctx.current;
+    if (c) updateDoc(doc(db, ...c.base), { muteAllMs: Date.now() }).catch(() => {});
+  }, []);
+  const lockMeeting = useCallback((v) => {
+    const c = ctx.current;
+    if (c) updateDoc(doc(db, ...c.base), { locked: !!v }).catch(() => {});
+  }, []);
+  const endForAll = useCallback(async () => {
+    const c = ctx.current;
+    if (c) await updateDoc(doc(db, ...c.base), { endedMs: Date.now() }).catch(() => {});
+    leaveRef.current();
   }, []);
 
   const switchCamera = useCallback(async () => {
@@ -299,6 +365,11 @@ export function useRoom(me) {
     localStream,
     streams,
     participants,
+    meta,
+    setMyState,
+    muteAll,
+    lockMeeting,
+    endForAll,
     sharing,
     error,
     clearError: () => setError(null),

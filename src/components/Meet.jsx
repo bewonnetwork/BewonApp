@@ -63,7 +63,7 @@ export default function Meet({ me, onJoinMeeting, busy }) {
 
   return (
     <div className="panel">
-      <h3>🎥 {t('newMeeting')}</h3>
+      <h3>{t('newMeeting')}</h3>
       <input
         placeholder={t('meetTitlePh')}
         value={title}
@@ -80,7 +80,7 @@ export default function Meet({ me, onJoinMeeting, busy }) {
       </div>
       <p className="muted small">{t('meetHint')}</p>
 
-      <h3>🔗 {t('joinMeeting')}</h3>
+      <h3>{t('joinMeeting')}</h3>
       <div className="btn-row">
         <input
           placeholder={t('codePh')}

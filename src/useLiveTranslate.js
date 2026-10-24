@@ -3,9 +3,10 @@ import { addDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { speechCode, sameLang } from './i18n.js';
 import { translateText } from './translate.js';
+import { IS_NATIVE } from './config.js';
 
 const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
-export const speechInputSupported = !!SR;
+export const speechInputSupported = !!SR || IS_NATIVE;
 
 /**
  * Voice call-e live translate.
@@ -25,11 +26,56 @@ export function useLiveTranslate({ callId, enabled, speak, me }) {
   // Nijer kotha -> text -> pathao
   useEffect(() => {
     if (!callId || !enabled) return undefined;
+    let stopped = false;
+    // APK (Android): native speech recognition plugin
+    if (!SR && IS_NATIVE) {
+      (async () => {
+        try {
+          const { SpeechRecognition } = await import('@capacitor-community/speech-recognition');
+          const perm = await SpeechRecognition.requestPermissions();
+          if (perm.speechRecognition !== 'granted') {
+            setMicState('denied');
+            return;
+          }
+          setMicState('listening');
+          while (!stopped) {
+            try {
+              const r = await SpeechRecognition.start({
+                language: speechCode(me.lang),
+                maxResults: 1,
+                partialResults: false,
+                popup: false,
+              });
+              const text = ((r && r.matches && r.matches[0]) || '').trim();
+              if (text && !speakingRef.current && !stopped) {
+                addLine({ id: `me${Date.now()}`, mine: true, text });
+                addDoc(collection(db, 'calls', callId, 'captions'), {
+                  from: me.uid,
+                  text,
+                  lang: me.lang,
+                  createdMs: Date.now(),
+                }).catch(() => {});
+              }
+            } catch (e) {
+              await new Promise((res) => setTimeout(res, 1200));
+            }
+          }
+        } catch (e) {
+          setMicState('unsupported');
+        }
+      })();
+      return () => {
+        stopped = true;
+        setMicState('idle');
+        import('@capacitor-community/speech-recognition')
+          .then(({ SpeechRecognition }) => SpeechRecognition.stop())
+          .catch(() => {});
+      };
+    }
     if (!SR) {
       setMicState('unsupported');
       return undefined;
     }
-    let stopped = false;
     const start = () => {
       if (stopped) return;
       const rec = new SR();

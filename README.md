@@ -20,6 +20,11 @@ https://bewonapp-bf500.web.app
 - News tab: global news portal link (+ nijer bhasha-y pora)
 - Message kokhono auto-delete hoy na. Offline cache-o ache
 - Updates (Status, 24 ghonta, chobi/text, ke dekhse), Communities, Broadcast list, Locked chats (PIN), Linked devices info, Document/file pathano (max 600 KB)
+- Meeting: participants list, hand raise, meeting chat (auto translate), host mute-all / end-for-all, timer, link share
+- Pin / Favourite / Archive / Mute chat, Crypto price + wallet balance (read-only), background notification (app chalu thakle)
+- Settings: online/last-seen hide, profile photo auto-save, App lock (PIN + fingerprint + authenticator code), UI 50 language-e auto translate (device-e cache)
+- Meeting: spotlight, reaction, lock, fit/fill screen. Call-e nijer bhasha-y shona (APK-te native speech, PC-te Chrome)
+- News: 150+ portal
 - Chat list filter (All / Unread / Groups), Menu (New group, Starred, Mark all read, Settings)
 
 ## File guide (ki file ki kaj kore)

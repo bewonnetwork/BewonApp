@@ -93,25 +93,12 @@ export default function Message({
         <span className="text" dir="auto">
           {shownText}
         </span>
-        {canTranslate && (
+        {canTranslate && (loading || failed) && (
           <div className="tr-note">
             {loading && <span>{t('translating')}</span>}
             {failed && (
               <button type="button" onClick={(e) => { e.stopPropagation(); doTranslate(); }}>
                 {t('translateFail')} ↻
-              </button>
-            )}
-            {translated && (
-              <>
-                <span>{t('translatedFrom', { lang: langName(tr.from) })}</span>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setShowOrig((v) => !v); }}>
-                  {showOrig ? t('showTranslation') : t('showOriginal')}
-                </button>
-              </>
-            )}
-            {!auto && !tr && !loading && !failed && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); doTranslate(); }}>
-                <Icon n="globe" size={13} /> {t('translate')}
               </button>
             )}
           </div>
@@ -167,6 +154,18 @@ export default function Message({
           >
             <Icon n="star" size={17} fill={starred} /> {starred ? t('unstar') : t('star')}
           </button>
+          {canTranslate && (translated || !auto) && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenu(false);
+                if (translated) setShowOrig((v) => !v);
+                else doTranslate();
+              }}
+            >
+              <Icon n="globe" size={17} /> {translated ? (showOrig ? t('showTranslation') : t('showOriginal')) : t('translate')}
+            </button>
+          )}
           {m.type === 'text' && (
             <button
               type="button"
